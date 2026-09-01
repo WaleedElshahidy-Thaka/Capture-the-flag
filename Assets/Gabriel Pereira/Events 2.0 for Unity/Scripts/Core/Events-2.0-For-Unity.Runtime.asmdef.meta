@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 9461a94110aa28d438cf7a7233da72e5
+AssemblyDefinitionImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 168031
+  packageName: Events 2.0 for Unity
+  packageVersion: 1.11.0
+  assetPath: Assets/Gabriel Pereira/Events 2.0 for Unity/Scripts/Core/Events-2.0-For-Unity.Runtime.asmdef
+  uploadId: 850314

@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: c745e72287825954d9b7210816b4f08f
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 168031
+  packageName: Events 2.0 for Unity
+  packageVersion: 1.11.0
+  assetPath: Assets/Gabriel Pereira/Events 2.0 for Unity/Scripts/Editor/UI/TMP_InputField2Editor.cs
+  uploadId: 850314

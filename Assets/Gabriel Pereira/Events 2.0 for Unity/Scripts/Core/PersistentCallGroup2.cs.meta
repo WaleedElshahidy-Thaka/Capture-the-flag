@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: 35de8b5cd691c1b43b71fd8ebae5d36f
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 168031
+  packageName: Events 2.0 for Unity
+  packageVersion: 1.11.0
+  assetPath: Assets/Gabriel Pereira/Events 2.0 for Unity/Scripts/Core/PersistentCallGroup2.cs
+  uploadId: 850314

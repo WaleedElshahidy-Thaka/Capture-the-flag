@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: 2913a9cc4d4bb4b40bceafb28379c7c5
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 168031
+  packageName: Events 2.0 for Unity
+  packageVersion: 1.11.0
+  assetPath: Assets/Gabriel Pereira/Events 2.0 for Unity/Scripts/Core/InvokableCallList2.cs
+  uploadId: 850314

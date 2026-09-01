@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: d32c2cb61be4df94782c5f44980c50e0
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 168031
+  packageName: Events 2.0 for Unity
+  packageVersion: 1.11.0
+  assetPath: Assets/Gabriel Pereira/Events 2.0 for Unity/Examples/Scriptable Object
+    Example 2.0.asset
+  uploadId: 850314

@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: ecbbaf90246b7d940b3715c0eec7b67a
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 168031
+  packageName: Events 2.0 for Unity
+  packageVersion: 1.11.0
+  assetPath: Assets/Gabriel Pereira/Events 2.0 for Unity/Scripts/Core/Attributes/IntSliderAttribute.cs
+  uploadId: 850314

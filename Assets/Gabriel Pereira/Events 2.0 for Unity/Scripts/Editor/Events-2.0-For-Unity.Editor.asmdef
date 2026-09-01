@@ -1,0 +1,24 @@
+{
+    "name": "Events2.0ForUnity.Editor",
+    "references": [
+        "Unity.TextMeshPro",
+        "Events2.0ForUnity"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [
+        {
+            "name": "com.unity.textmeshpro",
+            "expression": "1.0.0",
+            "define": "TEXTMESHPRO"
+        }
+    ],
+    "noEngineReferences": false
+}
