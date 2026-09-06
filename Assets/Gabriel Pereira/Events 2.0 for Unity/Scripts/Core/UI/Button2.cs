@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections;
 using System.Diagnostics;
+using Unity.VisualScripting;
 using UnityEngine.Events;
 using UnityEngine.EventSystems;
 using UnityEngine.Serialization;
@@ -38,7 +39,11 @@ namespace UnityEngine.UI
 			else
 				m_OnClick.Invoke();
 		}
-
+		public void SetCustomState(bool isHighlited)
+		{
+			
+			base.DoStateTransition(isHighlited? SelectionState.Highlighted: SelectionState.Normal, true);
+		}
 		public void OnPointerClick(PointerEventData eventData)
 		{
 			if (!m_UsePointerEventData && eventData.button != PointerEventData.InputButton.Left)
@@ -104,5 +109,27 @@ namespace UnityEngine.UI
 		/// </summary>
 		[Serializable]
 		public class PointerDataEvent : UnityEvent2<PointerEventData> { }
-	}
+
+        private bool customHighlighted;
+
+        public override void OnPointerEnter(PointerEventData eventData)
+        {
+            customHighlighted = true;
+			IsCustomHighlighted();
+        }
+
+        public override void OnPointerExit(PointerEventData eventData)
+        {
+            customHighlighted = false;
+			IsCustomHighlighted();
+        }
+
+        public void IsCustomHighlighted()
+        {
+			if (IsActive() && IsInteractable() && customHighlighted)
+                base.DoStateTransition(SelectionState.Highlighted, true);
+			else
+				base.DoStateTransition(SelectionState.Normal, false);
+        }
+    }
 }
