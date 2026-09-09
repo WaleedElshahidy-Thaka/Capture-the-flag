@@ -19,12 +19,15 @@ public class RunnerCallbackRelay : INetworkRunnerCallbacks
     public Action<NetworkRunner, PlayerRef> OnPlayerLeftAction;
     public Action<NetworkRunner, ShutdownReason> OnShutdownAction;
     public Action<NetworkRunner, NetConnectFailedReason> OnConnectFailedAction;
+    public Action<NetworkRunner, NetworkInput> OnInputAction;
+    public Action<NetworkRunner> OnSceneLoadDoneAction;
 
     public void OnSessionListUpdated(NetworkRunner runner, List<SessionInfo> sessionList) => OnSessionListUpdatedAction?.Invoke(runner, sessionList);
     public void OnPlayerJoined(NetworkRunner runner, PlayerRef player) => OnPlayerJoinedAction?.Invoke(runner, player);
     public void OnPlayerLeft(NetworkRunner runner, PlayerRef player) => OnPlayerLeftAction?.Invoke(runner, player);
     public void OnShutdown(NetworkRunner runner, ShutdownReason shutdownReason) => OnShutdownAction?.Invoke(runner, shutdownReason);
     public void OnConnectFailed(NetworkRunner runner, NetAddress remoteAddress, NetConnectFailedReason reason) => OnConnectFailedAction?.Invoke(runner, reason);
+    public void OnInput(NetworkRunner runner, NetworkInput input) => OnInputAction?.Invoke(runner, input);
 
     // Unused by this project — required by the interface, intentionally empty.
     public void OnConnectedToServer(NetworkRunner runner) { }
@@ -35,9 +38,8 @@ public class RunnerCallbackRelay : INetworkRunnerCallbacks
     public void OnHostMigration(NetworkRunner runner, HostMigrationToken hostMigrationToken) { }
     public void OnReliableDataReceived(NetworkRunner runner, PlayerRef player, ReliableKey key, ReadOnlySpan<byte> data) { }
     public void OnReliableDataProgress(NetworkRunner runner, PlayerRef player, ReliableKey key, float progress) { }
-    public void OnSceneLoadDone(NetworkRunner runner) { }
+    public void OnSceneLoadDone(NetworkRunner runner) => OnSceneLoadDoneAction?.Invoke(runner);
     public void OnSceneLoadStart(NetworkRunner runner) { }
-    public void OnInput(NetworkRunner runner, NetworkInput input) { }
     public void OnInputMissing(NetworkRunner runner, PlayerRef player, NetworkInput input) { }
     public void OnObjectExitAOI(NetworkRunner runner, NetworkObject obj, PlayerRef player) { }
     public void OnObjectEnterAOI(NetworkRunner runner, NetworkObject obj, PlayerRef player) { }

@@ -1,0 +1,23 @@
+Photon Fusion Physics Addon - Release History
+
+## 2.1.1
+
+**Changes**
+
+- Changed obsolete usages of Physics.autoSimulation.
+
+## 2.1.0
+
+**What's New**
+
+- Expose PhysicsBody in NetworkRigidbody that allows unified interactions for both Rigidbody and Rigidbody2D.
+
+**Changes**
+
+- NetworkRigidbody now warns and self-despawns if no Rigidbody or Rigidbody2D component is found on the object.
+
+**Bug Fixes**
+
+- Teleport handling now discards the correct snapshot and snaps to the teleport location.
+- Forcing awake of NetworkRigidbodies on spawned for initial sync.
+- Spawn position of NetworkRigidbody on clients has been fixed.
