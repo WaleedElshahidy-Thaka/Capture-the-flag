@@ -1,6 +1,6 @@
 %YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
---- !u!1 &968049084713030370
+--- !u!1 &7300291597040378851
 GameObject:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -8,12 +8,13 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
-  - component: {fileID: 4286398811192698485}
-  - component: {fileID: 6830829804592514045}
-  - component: {fileID: 5660668809900119136}
-  - component: {fileID: 336653521231109979}
-  - component: {fileID: 3641968263165936947}
-  - component: {fileID: 417912598932523310}
+  - component: {fileID: 4409945176845318917}
+  - component: {fileID: 1972454022427814792}
+  - component: {fileID: 4153392979551912714}
+  - component: {fileID: 8881583501354250215}
+  - component: {fileID: 2445612791816955325}
+  - component: {fileID: 6189387937430930796}
+  - component: {fileID: 7963081532423182166}
   m_Layer: 0
   m_Name: PlayerCar
   m_TagString: Untagged
@@ -21,29 +22,29 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!4 &4286398811192698485
+--- !u!4 &4409945176845318917
 Transform:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 968049084713030370}
+  m_GameObject: {fileID: 7300291597040378851}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
-  - {fileID: 9099428985110978945}
+  - {fileID: 2771788655489686952}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!54 &6830829804592514045
+--- !u!54 &1972454022427814792
 Rigidbody:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 968049084713030370}
+  m_GameObject: {fileID: 7300291597040378851}
   serializedVersion: 5
   m_Mass: 50
   m_LinearDamping: 1.5
@@ -64,13 +65,13 @@ Rigidbody:
   m_Interpolate: 1
   m_Constraints: 80
   m_CollisionDetection: 0
---- !u!65 &5660668809900119136
+--- !u!65 &4153392979551912714
 BoxCollider:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 968049084713030370}
+  m_GameObject: {fileID: 7300291597040378851}
   m_Material: {fileID: 0}
   m_IncludeLayers:
     serializedVersion: 2
@@ -85,13 +86,31 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1.2, y: 0.8, z: 1.6}
   m_Center: {x: 0, y: 0.4, z: 0}
---- !u!114 &336653521231109979
+--- !u!114 &8881583501354250215
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 968049084713030370}
+  m_GameObject: {fileID: 7300291597040378851}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6f6434e166a669846adf48f04ca6b994, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerMatchState
+  _IsReady:
+    RawValue: 0
+  _IsSearching:
+    RawValue: 0
+  _CanMove:
+    RawValue: 0
+--- !u!114 &2445612791816955325
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7300291597040378851}
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 2d7dd53d1dfbd4245a10ec7d16127d72, type: 3}
@@ -103,40 +122,41 @@ MonoBehaviour:
   boostMultiplier: 1.8
   normalFriction: 1
   driftFriction: 0.15
-  frontLeftTire: {fileID: 9133301706774722236}
-  frontRightTire: {fileID: 4846695419242867374}
-  rearLeftTire: {fileID: 4668380127959269740}
-  rearRightTire: {fileID: 868250631789363660}
+  frontLeftTire: {fileID: 2806011848682621589}
+  frontRightTire: {fileID: 1977676883759634055}
+  rearLeftTire: {fileID: 1799644991715556677}
+  rearRightTire: {fileID: 6069814576509435365}
   tireRadius: 0.3
   maxTireSteerAngle: 30
---- !u!114 &3641968263165936947
+--- !u!114 &6189387937430930796
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 968049084713030370}
+  m_GameObject: {fileID: 7300291597040378851}
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: -1552182283, guid: e725a070cec140c4caffb81624c8c787, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Fusion.Runtime.dll::Fusion.NetworkObject
-  SortKey: 2297773718
+  SortKey: 4118596035
   SendPriority: 1
   EnableInterpolation: 1
   Flags: 262402
   NestedObjects: []
   NetworkedBehaviours:
-  - {fileID: 417912598932523310}
-  - {fileID: 336653521231109979}
+  - {fileID: 7963081532423182166}
+  - {fileID: 8881583501354250215}
+  - {fileID: 2445612791816955325}
   ForceRemoteRenderTimeframe: 0
---- !u!114 &417912598932523310
+--- !u!114 &7963081532423182166
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 968049084713030370}
+  m_GameObject: {fileID: 7300291597040378851}
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 158639473, guid: e725a070cec140c4caffb81624c8c787, type: 3}
@@ -170,13 +190,13 @@ MonoBehaviour:
     MinImpactfulCollisionAlignment: 0.3
     ImpactStartCorrectionTime: 0.1
     ImpactCorrectionTimeComplete: 0.3
---- !u!1001 &2036968308920292976
+--- !u!1001 &4932627456892430937
 PrefabInstance:
   m_ObjectHideFlags: 0
   serializedVersion: 2
   m_Modification:
     serializedVersion: 3
-    m_TransformParent: {fileID: 4286398811192698485}
+    m_TransformParent: {fileID: 4409945176845318917}
     m_Modifications:
     - target: {fileID: 1430415953444133699, guid: aab3461450c20c340818502171323b9f, type: 3}
       propertyPath: m_Name
@@ -227,28 +247,28 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: aab3461450c20c340818502171323b9f, type: 3}
---- !u!4 &868250631789363660 stripped
-Transform:
-  m_CorrespondingSourceObject: {fileID: 1173300656345995196, guid: aab3461450c20c340818502171323b9f, type: 3}
-  m_PrefabInstance: {fileID: 2036968308920292976}
-  m_PrefabAsset: {fileID: 0}
---- !u!4 &4668380127959269740 stripped
+--- !u!4 &1799644991715556677 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 6669172562883073820, guid: aab3461450c20c340818502171323b9f, type: 3}
-  m_PrefabInstance: {fileID: 2036968308920292976}
+  m_PrefabInstance: {fileID: 4932627456892430937}
   m_PrefabAsset: {fileID: 0}
---- !u!4 &4846695419242867374 stripped
+--- !u!4 &1977676883759634055 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 6847204454947093726, guid: aab3461450c20c340818502171323b9f, type: 3}
-  m_PrefabInstance: {fileID: 2036968308920292976}
+  m_PrefabInstance: {fileID: 4932627456892430937}
   m_PrefabAsset: {fileID: 0}
---- !u!4 &9099428985110978945 stripped
+--- !u!4 &2771788655489686952 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 7062604712331376625, guid: aab3461450c20c340818502171323b9f, type: 3}
-  m_PrefabInstance: {fileID: 2036968308920292976}
+  m_PrefabInstance: {fileID: 4932627456892430937}
   m_PrefabAsset: {fileID: 0}
---- !u!4 &9133301706774722236 stripped
+--- !u!4 &2806011848682621589 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 7099012636207653068, guid: aab3461450c20c340818502171323b9f, type: 3}
-  m_PrefabInstance: {fileID: 2036968308920292976}
+  m_PrefabInstance: {fileID: 4932627456892430937}
+  m_PrefabAsset: {fileID: 0}
+--- !u!4 &6069814576509435365 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: 1173300656345995196, guid: aab3461450c20c340818502171323b9f, type: 3}
+  m_PrefabInstance: {fileID: 4932627456892430937}
   m_PrefabAsset: {fileID: 0}

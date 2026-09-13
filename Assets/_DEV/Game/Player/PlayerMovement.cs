@@ -5,12 +5,19 @@ using Fusion;
 // resolved by PhysX itself, not by hand-written math. Rotation is locked to yaw-only (frozen
 // X/Z) so the car can't tip over.
 //
-// Networked: input is gathered once per tick by DriveNetworkBootstrap (Fusion's input model
-// requires that, not a direct Keyboard.current read here) and applied in FixedUpdateNetwork,
-// which runs on Runner.DeltaTime instead of Unity's own FixedUpdate. A NetworkTransform sibling
-// component (Forecast Physics mode) replicates the resulting Rigidbody motion - this component
-// only ever applies forces, it doesn't network anything itself.
+// Networked: input is gathered once per tick by PlayerInputSampler via QuickMatchFusionService's
+// OnInputAction (Fusion's input model requires that, not a direct Keyboard.current read here)
+// and applied in FixedUpdateNetwork, which runs on Runner.DeltaTime instead of Unity's own
+// FixedUpdate. A NetworkTransform sibling component (Forecast Physics mode) replicates the
+// resulting Rigidbody motion - this component only ever applies forces, it doesn't network
+// anything itself.
+//
+// Exists (and is positioned/visible) from the moment its player connects, not only once a
+// match starts - PlayerMatchState.CanMove (a separate sibling component; matchmaking state
+// isn't this class's concern) is what actually gates whether input gets turned into force, set
+// by MatchStarter once the match begins.
 [RequireComponent(typeof(Rigidbody))]
+[RequireComponent(typeof(PlayerMatchState))]
 public class PlayerMovement : NetworkBehaviour
 {
     [SerializeField] float engineForce = 2000f;
@@ -33,6 +40,7 @@ public class PlayerMovement : NetworkBehaviour
     [SerializeField] float maxTireSteerAngle = 30f; // degrees
 
     Rigidbody body;
+    PlayerMatchState matchState;
     PhysicsMaterial frictionMaterial;
     float steerInput; // cached from the last simulated tick's input, purely for LateUpdate's cosmetic tire yaw
     float tireRollAngle;
@@ -40,6 +48,7 @@ public class PlayerMovement : NetworkBehaviour
     void Awake()
     {
         body = GetComponent<Rigidbody>();
+        matchState = GetComponent<PlayerMatchState>();
         body.constraints = RigidbodyConstraints.FreezeRotationX | RigidbodyConstraints.FreezeRotationZ;
 
         // A per-car material instance (not a shared asset) so drift only affects this car's
@@ -54,7 +63,7 @@ public class PlayerMovement : NetworkBehaviour
     }
 
     // In Shared Mode, whichever peer calls Runner.Spawn becomes State Authority for the result -
-    // and DriveNetworkBootstrap only ever spawns a car for its OWN local player's join, so
+    // and PlayerLobbySpawner only ever spawns a car for its OWN local player's join, so
     // HasStateAuthority here always means "this is my own car" (never a remote player's). Input
     // Authority is still a separate thing Fusion won't assign on its own, and GetInput only
     // returns input for whoever holds it, so FixedUpdateNetwork below would silently get none
@@ -74,6 +83,7 @@ public class PlayerMovement : NetworkBehaviour
     public override void FixedUpdateNetwork()
     {
         if (GetInput(out PlayerNetInput input) == false) return;
+        if (matchState.CanMove == false) return;
 
         float throttleInput = input.ThrottleAxis;
         steerInput = input.SteerAxis;

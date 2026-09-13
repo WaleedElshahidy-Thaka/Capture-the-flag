@@ -1,8 +1,9 @@
 using Fusion;
 
-// Sampled once per network tick in DriveNetworkBootstrap's OnInput callback (Fusion requires
-// input to be gathered there, not read directly in a NetworkBehaviour's Update/FixedUpdateNetwork)
-// and consumed by PlayerMovement.FixedUpdateNetwork via GetInput<PlayerNetInput>.
+// Sampled once per network tick by PlayerInputSampler.Sample(), called from an OnInput callback
+// (Fusion requires input to be gathered there, not read directly in a NetworkBehaviour's
+// Update/FixedUpdateNetwork) and consumed by PlayerMovement.FixedUpdateNetwork via
+// GetInput<PlayerNetInput>.
 public struct PlayerNetInput : INetworkInput
 {
     public float ThrottleAxis; // -1..1, W/S or Up/Down
