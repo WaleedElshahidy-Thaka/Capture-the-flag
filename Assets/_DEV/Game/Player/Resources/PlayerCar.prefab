@@ -10,11 +10,15 @@ GameObject:
   m_Component:
   - component: {fileID: 4409945176845318917}
   - component: {fileID: 1972454022427814792}
-  - component: {fileID: 4153392979551912714}
   - component: {fileID: 8881583501354250215}
   - component: {fileID: 2445612791816955325}
   - component: {fileID: 6189387937430930796}
   - component: {fileID: 7963081532423182166}
+  - component: {fileID: 8372063306951833953}
+  - component: {fileID: 8493667725398088379}
+  - component: {fileID: 2688468339463731797}
+  - component: {fileID: 7081416889851586965}
+  - component: {fileID: 3297556945909652845}
   m_Layer: 0
   m_Name: PlayerCar
   m_TagString: Untagged
@@ -65,27 +69,6 @@ Rigidbody:
   m_Interpolate: 1
   m_Constraints: 80
   m_CollisionDetection: 0
---- !u!65 &4153392979551912714
-BoxCollider:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 7300291597040378851}
-  m_Material: {fileID: 0}
-  m_IncludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_ExcludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_LayerOverridePriority: 0
-  m_IsTrigger: 0
-  m_ProvidesContacts: 0
-  m_Enabled: 1
-  serializedVersion: 3
-  m_Size: {x: 1.2, y: 0.8, z: 1.6}
-  m_Center: {x: 0, y: 0.4, z: 0}
 --- !u!114 &8881583501354250215
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -116,18 +99,71 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2d7dd53d1dfbd4245a10ec7d16127d72, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerMovement
-  engineForce: 2000
-  turnSpeed: 150
-  maxSpeed: 22
-  boostMultiplier: 1.8
-  normalFriction: 1
-  driftFriction: 0.15
+  handling:
+    TopSpeed: 22
+    Acceleration: 14
+    BrakeStrength: 26
+    CoastDrag: 5
+    ReverseTopSpeed: 8
+    ReverseDelay: 0.35
+    OverspeedDecay: 3
+    BoostMultiplier: 1.8
+    MaxYawRate: 110
+    SteerResponse: 0.18
+    SpeedScalingCurve:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 0.6
+        inSlope: 0
+        outSlope: 0.39999998
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 1
+        inSlope: 0.39999998
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+    LateralGrip: 0.86
+    DriftGripMultiplier: 0.45
+    GravityScale: 2.2
+    AirSteerMultiplier: 0.4
+    AirDrag: 1.5
+    SuspensionTravel: 0.45
+    SpringStrength: 55
+    DamperStrength: 6
+    GroundedLevelStrength: 6
+    AirLevelStrength: 2.5
+    MaxDriveAngle: 50
+    Mass: 1
+    Inertia: 1
+  groundMask:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  probeOffsets:
+  - {x: -0.43123358, y: 0.19073534, z: 0.2580464}
+  - {x: 0.43123358, y: 0.19073534, z: 0.2580464}
+  - {x: -0.43123358, y: 0.19073534, z: -0.375}
+  - {x: 0.43123358, y: 0.19073534, z: -0.375}
+  wheelRadius: 0.21850145
+  visual: {fileID: 2771788655489686952}
   frontLeftTire: {fileID: 2806011848682621589}
   frontRightTire: {fileID: 1977676883759634055}
   rearLeftTire: {fileID: 1799644991715556677}
   rearRightTire: {fileID: 6069814576509435365}
-  tireRadius: 0.3
   maxTireSteerAngle: 30
+  maxLeanAngle: 12
+  leanSpring: 8
 --- !u!114 &6189387937430930796
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -190,6 +226,111 @@ MonoBehaviour:
     MinImpactfulCollisionAlignment: 0.3
     ImpactStartCorrectionTime: 0.1
     ImpactCorrectionTimeComplete: 0.3
+--- !u!65 &8372063306951833953
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7300291597040378851}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 0.9, y: 0.7, z: 1.1}
+  m_Center: {x: 0, y: 0.5870029, z: 0}
+--- !u!135 &8493667725398088379
+SphereCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7300291597040378851}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Radius: 0.21850145
+  m_Center: {x: -0.43123358, y: 0.19073534, z: 0.2580464}
+--- !u!135 &2688468339463731797
+SphereCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7300291597040378851}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Radius: 0.21850145
+  m_Center: {x: 0.43123358, y: 0.19073534, z: 0.2580464}
+--- !u!135 &7081416889851586965
+SphereCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7300291597040378851}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Radius: 0.21850145
+  m_Center: {x: -0.43123358, y: 0.19073534, z: -0.375}
+--- !u!135 &3297556945909652845
+SphereCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7300291597040378851}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Radius: 0.21850145
+  m_Center: {x: 0.43123358, y: 0.19073534, z: -0.375}
 --- !u!1001 &4932627456892430937
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -242,7 +383,8 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
-    m_RemovedComponents: []
+    m_RemovedComponents:
+    - {fileID: 6389136067277422715, guid: aab3461450c20c340818502171323b9f, type: 3}
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
     m_AddedComponents: []

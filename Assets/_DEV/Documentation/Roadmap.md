@@ -1,78 +1,112 @@
-# Roadmap — Upcoming Development
+# Roadmap
 
-Forward-looking work, separate from `Networking_Progress.md` (which covers what's already
-built and how). Everything here is **not started** — none of it exists in the project yet.
-Several items depend on game-design decisions that aren't made yet, flagged explicitly below
-rather than assumed.
+Ordered by **risk**, not dependency: the game-defining unknown is "does a body-check feel good
+and agree across the network", so that gets proven early while it's still cheap to change.
 
-## The 4 next tasks
+Source of truth is the GDD under `Assets/GDD/`. Two sets: the **Driving Foundation**
+(`Robot Games Core...`, docs 01-08) which is platform-level, and **Glowtag** (FD-00 to FD-07)
+which is this game on top of it. Where they disagree with anything here, they win.
 
-### 1. Player contact & collision resolution
+## The game, in one line
 
-**Now**: PhysX + Forecast Physics already handle raw physical response (cars bounce/push off
-each other and the arena walls) — but nothing *means* anything when it happens. There's no
-concept of a "hit" beyond the physical bump.
+One Data Crown in a closed arena. Whoever holds it scores continuously; everyone else drives
+into them to take it. Highest score at 90 seconds wins. Six participants, bots filling any slot
+a real player didn't. Possession is the verb, score is the win condition.
 
-**Needed**: detect meaningful player-vs-player contact (Unity collision/trigger callbacks on
-`PlayerCar`, evaluated on the state-authority side so the result is authoritative, not guessed
-locally by an observer), and decide what a hit actually *does* in this game — feeds directly
-into tasks 3 and 4 below.
+## Rulings made
 
-**Open question — needs a decision before building**: what does a hit mean for Capture the
-Flag specifically? A tag/elimination? A knockback-only bump with no consequence? A trigger for
-stealing a carried flag? This is a rules decision, not an implementation detail.
+| Question | Ruling |
+|---|---|
+| Network topology | **Host/Client** (`AutoHostOrClient`), invisible to players. Confirmed by Glowtag FD-05: *"Glowtag's position: Host mode"* — Shared mode can't resolve contested steals on one authority, and gives bots no owner |
+| Participants | **6**, per FD-07. Bots fill every empty slot, so the field is always full |
+| Handling values | **Serialized fields first**, lifted to ScriptableObject profiles once tuned |
+| Arena scale | **Serialized** on `ArenaBounds`, editable in the inspector, until the art team's arena arrives |
 
-### 2. Game Manager — match lifecycle & win condition
+## Phase 0 — Network topology ✅
 
-**Now**: nothing owns "the match" once it starts. `MatchStarter.StartMatch()` flips
-`PlayerMatchState.CanMove` and that's it — no match timer, no win-condition check, no way for a
-match to actually *end*, no path back to the lobby afterward.
+`GameMode.Shared` → `AutoHostOrClient`. Host spawns every car and holds State Authority over
+all of them, so `HasStateAuthority` no longer means "mine" — ownership checks moved to
+`HasInputAuthority`. `CanMove` is released host-side in `MatchmakingSessionState.TriggerStart`,
+since a client can't write networked state.
 
-**Needed**: a networked match-state object, following the same pattern already established by
-`MatchmakingSessionState` (spawned once via `IsSharedModeMasterClient`, self-authoritative) —
-tracking match phase/timer, checking win conditions every tick, and handling match end (results
-display, return-to-lobby flow — note there currently *is no* return-to-lobby path once
-`MatchStarting` fires; that's new scope, not a gap in what exists today).
+## Phase 1 — Drive model core ✅
 
-**Open question**: what ends a match — a time limit, a score threshold, last-player-standing?
-Depends on the scoring and lives design below, so this task is naturally sequenced after (or
-alongside) tasks 3 and 4, not fully before them.
+GDD doc 03, milestones M1 / M2 / M4. Full detail in `Vehicle_Model.md`.
 
-### 3. Flag capture & scoring
+Built to the doc's fixed step order, with velocity composed and written per tick rather than
+accumulated through `AddForce`. Probe positions and wheel radius are measured from the art at
+prefab build time instead of guessed. Attitude is **levelled, not frozen** — the chassis conforms
+to slopes and always returns upright, which is what doc 03 asks for ("force-levelled", not
+"unable to rotate"). Colliders are a compound of primitives approximating the robot silhouette:
+body box raised clear of ride height, plus a sphere per wheel.
 
-**Now**: no flag object exists. No capture zones, no score state, nothing.
+Deliberately **not** in Phase 1: slope/grade (M3), surface tags, airborne polish, drift & boost.
 
-**Needed**: a flag `GameObject` (or one per team) with pickup/carry/return/capture logic —
-carried-flag ownership needs to be authoritative and replicate correctly (same State Authority
-model already used for `PlayerCar`), per-player or per-team score state, and a HUD element to
-show it.
+Kept untouched, by request: spawning, `PlayerCar.prefab`, `PlayerMatchState`, matchmaking flow,
+camera wiring.
 
-**Open question — this changes the model significantly, decide first**: solo free-for-all
-(everyone for themselves) or team-based (2v2, matching `MatchmakingConfig.MaxPlayers = 4`)?
+**Known regression until Phase 2:** wall and car contact is crude, because a direct velocity
+write partly overwrites PhysX's collision response. That is what Phase 2 replaces with authored
+resolution — not something to patch here.
 
-### 4. Player elimination — die & lives
+## Phase 2 — Contact system ← the actual game, next up
 
-**Now**: `PlayerCar` never dies. `CanMove` only ever transitions false → true, once, and never
-back.
+GDD doc 05, milestones M1-M4. Split into four testable steps, in this order:
 
-**Needed**: define what causes death (tagged while carrying the flag? knocked out of the arena?
-some hit-point/contact threshold from task 1?), a lives model (limited lives → permanent
-elimination for the match, vs. a respawn-after-cooldown loop), and how death interacts with the
-existing `PlayerMatchState`/`CanMove` gate — likely a new `[Networked] IsAlive` (or
-`LivesRemaining`), plus respawn positioning (the `PlayerId`-based spawn-offset scheme already
-used in `PlayerLobbySpawner` generalizes directly to this).
+**2a — Wall behaviour.** Project velocity along the wall rather than reflecting it, speed cost
+scaled by incidence angle, `min_exit_speed` floor. First because it fixes the Phase 1 regression,
+because doc 05 explicitly allows wall contact to resolve **locally** (no authority plumbing), and
+because it's the only part testable **solo** — everything car-vs-car needs two peers per
+iteration.
 
-## Also worth tracking (not one of the 4 above — sequence after core mechanics)
+**2b — Detection & classification.** Glance / bump / slam by angle within the cone, not speed
+alone. Aggressor determination and contact quality. Classify and log only — confirm it labels
+hits correctly before it starts changing physics.
 
-**Art & polish pass** — replace the single placeholder "Bolt" robot model (currently identical
-for every player — this is the same gap already noted in `Networking_Progress.md`'s "no visual
-distinction between your own car and another player's") with real per-player visuals, and add
-visual effects: boost trail, drift smoke, impact/collision feedback, flag pickup/capture,
-elimination. Deliberately sequenced *after* tasks 1-4 — polishing collision/scoring/death
-visuals before those systems' actual behavior is locked risks redoing the art once the rules
-settle.
+**2c — Chassis-to-chassis resolution.** Host-authoritative momentum exchange using mass, plus the
+authored arcade bonus and aggressor speed cost, with `mass_ratio_cap`.
 
-## Already-known gaps this roadmap doesn't duplicate
+**2d — Spin-out.** The only recovery state: networked, steering reduced but never zero, settles
+facing direction of travel, cannot be re-spun while active.
 
-See `Networking_Progress.md`'s "Known gaps" section for networking-specific items (bot AI,
-`Game.unity` Build Settings step) not repeated here.
+*Done when:* two peers deliberately body-check and both see the same outcome, no snap.
+
+## Phase 3 — Impact feedback
+
+Doc 05 M7. Camera shake scaled by impulse, distinct audio per class, squash on the receiver, a
+positive cue for the aggressor specifically, comic spin-out motif. Roughly half of perceived hit
+quality, and doc 05 makes it a spec requirement rather than polish.
+
+## Phase 4 — The Crown
+
+Glowtag FD-02. One networked object with a holder. Spawn from authored candidate points with the
+asymmetry rule, telegraphed. **Steal = any classified contact against the holder** — consumes
+Phase 2's classification and aggressor determination directly. A spun-out holder *keeps* the
+Crown; spin-out is recovery, not dispossession.
+
+## Phase 5 — Round & scoring
+
+Glowtag FD-01. 3s countdown → crown spawn delay → telegraph → 90s round → standings. Flat
+`score_rate` per second while holding, banked per tick, no multipliers. Score is
+authority-accumulated, never client-accumulated.
+
+## Phase 6 — Completion
+
+Bots (FD-07 — input source only, no second movement system) · drift & boost economy (doc 04,
+which Glowtag elevates: `boost_bump_multiplier` 1.6× makes drift **the primary earned steal
+tool**) · power-ups (FD-04) · handling profiles extracted to ScriptableObjects · art and VFX.
+
+## Scope deleted by Glowtag FD-06
+
+Recorded so nobody builds them: no out-of-bounds detection, no drivable volume, no respawn
+anchors, no splines, no checkpoints, no racing line, no boost pads, no moving geometry. The arena
+is fully closed, and manual respawn is disabled.
+
+## Open, not blocking
+
+- **Tick rate (ruling N2)** — FD-05 says the mode can't be finally tuned until it's ruled on; at
+  30Hz the drift release window's wall-clock duration doubles.
+- **Steal rule** — shipping as "any contact" for first playtest. Tightening it to bump-or-above
+  or slam-only makes bots materially weaker (FD-07 links the two decisions).
+- **Arena geometry** — FD-06 wants wall angles that favour scrapes over impacts; the current
+  placeholder is a square box with 90° corners, which produces head-on impacts from nothing.

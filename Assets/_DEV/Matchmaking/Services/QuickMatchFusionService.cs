@@ -6,12 +6,18 @@ using Fusion.Photon.Realtime;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
-// Real Photon Fusion 2 Quick Match backend. GameMode.Shared, not Host/Client - no player's own
-// device is silently the arbiter, matching the same "everyone just finds a match and plays" call
-// made for Drive.unity (see Documentation/Networking_Progress.md). No room name, no room code as
-// SessionName, no visibility choice - a shared SessionName with no explicit room code is Fusion's
-// own "quick join" behaviour, so the first searcher transparently opens the session and later
-// searchers are placed into it.
+// Real Photon Fusion 2 Quick Match backend. GameMode.AutoHostOrClient: the first searcher
+// transparently becomes host and later searchers join as clients, with no room name, room code
+// or visibility choice anywhere in the flow. Players never see or choose this - from their side
+// it's still "press Find Match, get put in with people", which is the actual requirement. The
+// host/client split is an implementation detail they are never shown.
+//
+// Deliberately NOT GameMode.Shared, which an earlier pass used. Shared Mode has no single
+// authority to resolve a chassis-to-chassis contact, and this game is built around contact -
+// two peers each resolving the same bump against their own stale proxy of the other car
+// disagree about who won it, which decides who holds the flag. Collision, Contact & Recovery
+// (GDD doc 05) requires one authority per contact; Host/Client is what provides it. It is also
+// what makes the drive model's rollback/determinism contract (GDD doc 03) achievable at all.
 //
 // OPEN VERIFICATION ITEM: whether joining without a SessionName actually filters candidate
 // sessions by SessionProperties[GameIdPropertyKey] or only tags the resulting session for
@@ -62,7 +68,7 @@ public class QuickMatchFusionService : IQuickMatchService
 
         var args = new StartGameArgs
         {
-            GameMode = GameMode.Shared,
+            GameMode = GameMode.AutoHostOrClient,
             PlayerCount = MatchmakingConfig.MaxPlayers,
             IsVisible = true,
             IsOpen = true,
@@ -85,10 +91,9 @@ public class QuickMatchFusionService : IQuickMatchService
             yield break;
         }
 
-        // Shared Mode has no server - "IsSharedModeMasterClient" is the closest analog (the
-        // room's first/designated peer), used here purely to make sure exactly one copy of the
-        // singleton session state gets spawned rather than one per peer.
-        if (runner.IsSharedModeMasterClient)
+        // Host only - under AutoHostOrClient the host is the sole spawner, so exactly one copy
+        // of the singleton session state exists and every client receives it by replication.
+        if (runner.IsServer)
         {
             var sessionStatePrefab = Resources.Load<NetworkObject>("MatchmakingSessionState");
             if (sessionStatePrefab == null)

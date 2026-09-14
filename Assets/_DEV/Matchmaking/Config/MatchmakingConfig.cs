@@ -2,7 +2,10 @@
 // nothing here should ever be hardcoded again at a second call site.
 public static class MatchmakingConfig
 {
-    public const int MaxPlayers = 4;
+    // Six, per Glowtag FD-07: the lobby fills every empty slot with a bot, so a match always has
+    // exactly six participants and the partial-field cases earlier drafts planned around no
+    // longer occur. FD-06 requires six start anchors to match.
+    public const int MaxPlayers = 6;
 
     // The displayed search timer's hard ceiling - counts UP from 0 to this. Purely a display
     // cap / TickTimer duration, separate from when the bot-fill option actually unlocks.

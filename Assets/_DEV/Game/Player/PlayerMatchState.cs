@@ -21,13 +21,9 @@ public class PlayerMatchState : NetworkBehaviour
     [Networked] public NetworkBool IsSearching { get; set; }
     [Networked] public NetworkBool CanMove { get; set; }
 
-    // Per-player, not a single session-wide timer - starts counting from when THIS player
-    // clicked Find Match, not from whenever the session itself first spawned. Two players who
-    // click Find Match at different times see different elapsed times, which is the point.
-    [Networked] TickTimer SearchTimer { get; set; }
-
-    public float ElapsedSeconds => MatchmakingConfig.SearchDurationSeconds - (SearchTimer.RemainingTime(Runner) ?? 0f);
-    public bool BotOptionUnlocked => IsSearching && ElapsedSeconds >= MatchmakingConfig.BotOptionUnlockSeconds;
+    // The search timer/elapsed-time display lives on MatchmakingSessionState, not here - it's a
+    // shared lobby clock (synced for everyone searching together), not a per-player one. See
+    // that class's doc comment for why a per-player timer was tried and reverted.
 
     // Every currently-spawned instance, on every peer. Single source of truth
     // MatchmakingSessionState reads from to decide when a match should start.
@@ -38,15 +34,15 @@ public class PlayerMatchState : NetworkBehaviour
     // is, so MatchStarter can flip CanMove on exactly the right object without a scene search.
     public static PlayerMatchState Local;
 
-    // HasStateAuthority, not HasInputAuthority - Input Authority is assigned by
-    // PlayerMovement.Spawned() on the same NetworkObject, and Spawned() call order between
-    // sibling NetworkBehaviours isn't something to depend on. HasStateAuthority is true
-    // immediately, for whichever peer spawned this (see PlayerLobbySpawner) - always this
-    // client's own object, in Shared Mode, exactly like PlayerMovement's own check.
+    // HasInputAuthority, not HasStateAuthority - under Host/Client the host holds State Authority
+    // over every car, so HasStateAuthority would make Local point at whichever car happened to
+    // spawn last on the host, and at nothing at all on a client. Input Authority is the
+    // per-player one, assigned by the host at Runner.Spawn time, so it is already correct by the
+    // time this runs on any peer.
     public override void Spawned()
     {
         Active.Add(this);
-        if (Object.HasStateAuthority) Local = this;
+        if (Object.HasInputAuthority) Local = this;
         RosterChanged?.Invoke();
     }
 
@@ -70,7 +66,6 @@ public class PlayerMatchState : NetworkBehaviour
     public void RPC_SetSearching(NetworkBool searching)
     {
         IsSearching = searching;
-        if (searching) SearchTimer = TickTimer.CreateFromSeconds(Runner, MatchmakingConfig.SearchDurationSeconds);
     }
 
     // Solo-only path. A lone searcher already has State Authority over their own

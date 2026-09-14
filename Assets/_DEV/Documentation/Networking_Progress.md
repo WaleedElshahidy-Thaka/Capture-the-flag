@@ -1,179 +1,83 @@
-# Networking Progress
+# Networking
 
-Scene: `Assets/_DEV/Game/Scenes/Game.unity` — the one accepted scene, matchmaking lobby and
-real gameplay together. `LocalDrive.unity` also exists, deliberately non-networked, as a
-separate reference/testing sandbox — see `../README.md`.
+Scope: topology, authority and replication. The drive model has its own doc
+(`Vehicle_Model.md`); phases and rulings live in `Roadmap.md`.
 
-## History
+Scene: `Assets/_DEV/Game/Scenes/Game.unity` — matchmaking lobby and gameplay together, no second
+scene and no scene load between the two phases.
 
-1. **`Drive.unity`** (retired) — proved the networked `PlayerMovement` conversion and Forecast
-   Physics replication in isolation, no matchmaking involved.
-2. **`Matchmaking.unity`** (retired) — the Quick Match lobby flow (restored from git history
-   after being deleted during an earlier cleanup pass, then adapted from `GameMode.Host`/
-   `Client` to `GameMode.Shared`).
-3. **`Game.unity`** — both combined by `Game/Editor/GameSceneSetup.cs`, plus a real gameplay
-   handoff neither predecessor had.
-4. **Connect-on-start, Find Match as a flag** — connecting to the shared hub moved from "behind
-   the Find Match button" to automatic on scene start. Find Match no longer triggers the
-   connection; it just marks this player as actively searching (`PlayerMatchState.IsSearching`),
-   which is what counts toward a match starting. Players connected-but-not-searching are visible
-   to everyone but never get swept into a match.
-5. **One networked object per player, not two** — originally, a separate `PlayerLobbyState`
-   (ready/searching data, spawned at connect) and `PlayerCar` (spawned only once a match
-   started) existed side by side, which needed active syncing and produced a real bug: whichever
-   was visible depended on which one had (or hadn't) been cleaned up, so a stale lobby capsule
-   and the real car could both be on screen at once. Fixed by spawning the real `PlayerCar` at
-   connect time and gating driving with a `CanMove` flag instead of the car's existence. The old
-   3D lobby placeholders (`LobbySlotView`, `LobbySeatAssigner`, `LobbySeatAnchors`) are deleted
-   entirely — you see everyone's real car from the moment they connect.
+## Topology: Host/Client, invisible to players
 
-## Flagged for next session — discuss before fixing
+`GameMode.AutoHostOrClient`. The first searcher transparently becomes host, later searchers join
+as clients. Players never see or choose this — from their side it's still "press Find Match, get
+put in with people."
 
-Found during testing step 5 below. Neither is fixed yet — both need a design decision first,
-not just a patch.
+An earlier pass used `GameMode.Shared`, on a misreading of "no authority in our game" as an
+architectural requirement rather than a UX one. Glowtag FD-05 rules directly against it:
 
-**1. Search timer isn't synchronized between players in the same lobby.** Two players in the
-same session see *different* "Finding player... Ns" numbers. This is a direct consequence of a
-deliberate choice made earlier this same pass: the timer was moved from session-wide
-(`MatchmakingSessionState.SearchTimer`, one clock for everyone) to per-player
-(`PlayerMatchState.SearchTimer`, starts when *that specific player* clicks Find Match) — done to
-fix an earlier complaint that the displayed time didn't reflect when *you* clicked Find Match.
-Those two goals are in tension: "starts exactly when I click" and "shows the same number as
-everyone else in the lobby" can't both be true unless everyone clicks at the same instant.
-**Needs a decision**: keep per-player (not synchronized, by design — each player's number means
-something different: their own search duration) vs. go back to a shared session clock
-(synchronized, but a late clicker's timer won't start at 0 for them). Worth deciding what the
-number is actually *for* before picking.
+> *"Glowtag's position: Host mode, with the host-disconnect risk accepted knowingly."*
 
-**2. Remote players' wheel-steer visual doesn't replicate — only your own car's wheels turn.**
-Confirmed via a real build test: Player 1 sees Player 2's car move (position/rotation replicate
-correctly — Forecast Physics is working), but Player 2's front wheels never visibly turn left/
-right on Player 1's screen, only on Player 2's own. Root cause (diagnosed, not yet fixed):
-`PlayerMovement.LateUpdate()`'s tire-turn animation reads `steerInput`, a plain (non-networked)
-field only ever written inside `FixedUpdateNetwork()` — which returns early via
-`GetInput(...) == false` for any car you don't have Input Authority over, i.e. every remote
-player's car, from your own client. So `steerInput` simply never updates for anyone else's car
-on your screen; it stays at its default. Purely cosmetic (doesn't affect real physics or
-position), but a real visual gap. **Needs a decision** on the fix approach: network the steer
-value explicitly (a `[Networked] float` set every tick, one more thing to replicate), or derive
-an approximate visual steer from something that already replicates (e.g. the Rigidbody's
-angular velocity via Forecast Physics) instead of the raw input.
+Two reasons, both decisive for this game:
 
-## Topology: Shared Mode, no host/client
+- **Contested steals.** Under Shared Mode each peer resolves a bump against its own stale proxy
+  of the other car, so the two disagree about who won it — and that decides who holds the Crown.
+  FD-05 calls this *"the exact case this mode cannot absorb."* Doc 05 requires one authority per
+  chassis-to-chassis contact; Host/Client is what provides it.
+- **Bots need an owner.** Shared Mode has no natural single authority to simulate them.
 
-The game is quick-match style — players just find each other and play, with no visible "who's
-hosting." That rules out Host/Client (where one player's own machine is silently the arbiter)
-and points at Fusion's **Shared Mode**: no single player's device holds authority, Photon's
-cloud relay coordinates the session, and each player has State Authority over their own objects
-because each player is the one who spawns them.
+Host migration is explicitly not requested. Rounds are 90 seconds, so a host drop costs one short
+round. Late join and rejoin are not supported — the session closes on StartMatch.
 
-- `Matchmaking/Services/QuickMatchFusionService.cs` starts `GameMode.Shared` on scene start (see
-  `MatchmakingFlowController.Start()`), no explicit `SessionName` — an empty one is Fusion's own
-  "quick join": first searcher opens a session, later searchers are placed into it.
-- `Matchmaking/Services/PlayerLobbySpawner.cs`: each peer spawns its own `PlayerCar` only on its
-  own `OnPlayerJoined` (`player == runner.LocalPlayer`), positioned by `PlayerId` (stable and
-  identical on every peer — a locally-computed list index is not, which was the cause of the
-  "both cars spawn in the same spot" bug). Spawning is what grants State Authority in Shared
-  Mode. No manual despawn-on-leave; a peer can't despawn another peer's object anyway. Relies on
-  `PlayerCar.prefab` having "Destroy When State Authority Leaves" enabled for cleanup — **verify
-  this checkbox is on**.
-- The singleton `MatchmakingSessionState` spawns via `runner.IsSharedModeMasterClient`
-  (Shared Mode's closest analog to "the host") instead of the old `runner.IsServer`.
-- `Matchmaking/Flow/MatchStarter.cs` flips `PlayerMatchState.Local.CanMove` once
-  `MatchmakingSessionState.MatchStarting` fires — no spawning happens there anymore, the car
-  already exists.
+## What that means in code
 
-## Physics replication: Forecast Physics, not the Physics Addon
+| Concern | Where |
+|---|---|
+| Spawning | Host only. `PlayerLobbySpawner` spawns one `PlayerCar` per joining player, handing each Input Authority over their own car. Clients never call `Spawn` |
+| "Is this my car?" | `Object.HasInputAuthority`. **Not** `HasStateAuthority` — the host holds State Authority over *every* car, so that means "I am the host" |
+| "Am I the host?" | `runner.IsServer`, or `HasStateAuthority` on the session singleton |
+| Match start | Host-side. `MatchmakingSessionState.TriggerStart` releases `CanMove` for every car — a client can't write networked state at all |
+| Despawn on leave | Host only |
+| Client → host requests | `[Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]`. Routes correctly and needed no change across the topology switch |
 
-Two ways Fusion can network a real Rigidbody-driven car:
+## Replicated simulation state
 
-- **Physics Addon's `NetworkRigidbody`** (full client-side prediction + resimulation) —
-  explicitly refuses to run in Shared Mode (its own source despawns the object with a warning
-  if you try). Not used.
-- **Core `NetworkTransform` with Forecast Physics** (extrapolates from the Rigidbody's last
-  known velocity instead of resimulating, with spring/damper correction on drift) — has
-  explicit Shared Mode support built in. This is what's used: a plain `NetworkTransform`
-  component with `PhysicsSettings.ForecastEnabled = true`, gated globally by
-  `NetworkProjectConfig.PhysicsForecast = true`
-  (`Assets/Photon/Fusion/Resources/NetworkProjectConfig.fusion`).
+Anything that accumulates across ticks must be networked and restorable, per doc 03's
+determinism contract — a rollback restores drive state, not PhysX internals.
 
-## Key files
+- `PlayerMovement`: `YawRate`, `BrakeHoldSeconds` (accumulating), `SteerInput` (cosmetic, but
+  every peer needs it to draw remote wheels turning)
+- `PlayerMatchState`: `IsReady`, `IsSearching`, `CanMove`
+- `MatchmakingSessionState`: `MatchStarting`, `BotCount`, `SearchStarted`, `SearchTimer`
 
-- `Game/Player/PlayerMovement.cs` — `NetworkBehaviour`, physics only. `FixedUpdateNetwork()`
-  applies throttle/steer/boost/drift forces from `GetInput<PlayerNetInput>`, but only once its
-  sibling `PlayerMatchState.CanMove` is true. `Spawned()` claims Input Authority and wires the
-  camera when `HasStateAuthority` is true (this is the local player's own car).
-- `Game/Player/PlayerMatchState.cs` — sibling `NetworkBehaviour` on the same `PlayerCar`
-  object, ready/searching/timer/`CanMove` state. Deliberately a separate component, not merged
-  into `PlayerMovement` — "am I allowed to move" and "how do I drive" are different concerns
-  (see the SOLID note below). Owns the per-player search timer (`ElapsedSeconds`,
-  `BotOptionUnlocked`) — starts from when *this* player clicked Find Match, not from session
-  creation.
-- `Game/Player/PlayerNetInput.cs` / `PlayerInputSampler.cs` — the networked input struct and
-  its keyboard sampling, called from `QuickMatchFusionService`'s `RunnerCallbackRelay.OnInputAction`.
-- `Game/Player/Resources/PlayerCar.prefab` — built by `GameSceneSetup.cs`'s
-  `BuildPlayerCarPrefab()` (menu: `Game → Setup Game Scene`). The one networked object per
-  player, spawned by `PlayerLobbySpawner` at connect time.
-- `Matchmaking/Network/PlayerMatchState.Active` / `RosterChanged` — replaces the old
-  `PlayerLobbyState.Active`; same role (single source of truth for who's connected), now on the
-  real car's own state component.
-- `Matchmaking/Flow/MatchmakingFlowController.cs` — the Idle → Searching →
-  (WaitingSolo | WaitingReady) → Starting state machine, backend-agnostic. `Start()` connects
-  automatically; `FindMatch()` just sets the searching flag; `Update()` notices
-  `Session.MatchStarting` and calls `MatchStarter.StartMatch` exactly once.
-- `Matchmaking/Flow/MatchStarter.cs` — the gameplay handoff: flips `CanMove`, hides the
-  matchmaking canvas. Bots not handled yet (no bot AI exists).
+## Physics replication
 
-## Design notes (SOLID / clean-code choices made along the way)
+Core `NetworkTransform` with Forecast Physics (`PhysicsSettings.ForecastEnabled`), gated globally
+by `NetworkProjectConfig.PhysicsForecast`.
 
-- **Single Responsibility**: `PlayerMovement` (physics) and `PlayerMatchState` (ready/searching/
-  movement-gate) are separate components on the same `NetworkObject` rather than one merged
-  class, even though merging would have meant one fewer file. `PlayerMovement` only ever reads
-  one bool (`CanMove`) from its sibling; it owns none of the matchmaking concept.
-- **Interface Segregation / Dependency Inversion**: `MatchmakingFlowController` and
-  `MatchmakingScreen` depend only on `IActiveQuickMatchSession` / `IQuickMatchService`, never on
-  Fusion types directly — `QuickMatchLocalService` (fake, solo) and `QuickMatchFusionService`
-  (real) are swappable behind the same contract, unchanged by this pass.
-- **DRY, avoiding a redundant parallel state object**: the original two-object design
-  (`PlayerLobbyState` + `PlayerCar`) required keeping two `NetworkObject`s, two spawn paths, and
-  two cleanup paths in sync for what was conceptually one player. Collapsed to one spawn, one
-  object, two focused components.
-- **No dead code carried forward**: `LobbySlotView`, `LobbySeatAssigner`, `LobbySeatAnchors`,
-  `PlayerLobbyState` and their prefabs are deleted outright, not left disabled/unused.
-- **Consistency over cleverness**: the `PlayerId`-based spawn positioning, the
-  `HasStateAuthority`-based "is this mine" check, and the self-spawn-on-own-join pattern are
-  now used identically in three places (`PlayerLobbySpawner`, `PlayerMovement.Spawned()`,
-  `PlayerMatchState.Spawned()`) rather than each solving "which object is mine" its own way.
+Note: the Physics Addon's `NetworkRigidbody` refuses Shared Mode but *works* under Host/Client,
+so that door reopened with the topology switch. It stays ruled out anyway — doc 03 rules out
+PhysX-driven vehicle physics on determinism grounds regardless of topology.
 
-## Status
+## Verified
 
-Verified so far, each as its own step (smallest testable slice first):
+1. `GameMode.Single` — networked movement conversion drives correctly, no second peer.
+2. `GameMode.Host`/`Client`, two real processes — car motion replicates.
+3. `GameMode.Shared`, per-player spawned cars — confirmed working end to end before the switch
+   away from it.
+4. Matchmaking merged into one scene; connect-on-start with Find Match as a searching flag;
+   shared lobby search timer; remote wheel-steer replication.
 
-1. `GameMode.Single` (in the now-retired `Drive.unity`) — networked `PlayerMovement` conversion
-   drives correctly with no second peer.
-2. `GameMode.Host`/`Client`, two real processes — confirmed the same car's motion replicates
-   from Host to Client.
-3. `GameMode.Shared`, per-player spawned cars — **confirmed working end-to-end**: two real
-   peers, each spawns and drives its own car, each sees the other player's car moving too.
-4. Matchmaking lobby merged into the same scene, real `PlayerCar` wired into `MatchStarter` —
-   tested; found and fixed two bugs (same-position spawning, stale lobby placeholders) and a
-   UX mismatch (connection behind Find Match instead of automatic) — see History above.
-5. One-object-per-player redesign + per-player search timer — tested with a real build (two
-   peers). Core flow works: both connect automatically, see each other as real cars from the
-   start, match starts, `CanMove` flips correctly. Surfaced the two issues above (timer sync,
-   remote wheel-steer visual) — both need a decision before fixing, see "Flagged for next
-   session".
-6. Connecting/loading UX — `MatchmakingPhase.Connecting` added, Find Match disabled with a
-   "Loading Game... Ns" message until the connection completes. Not yet re-tested since adding
-   this (it landed after the step 5 build test above).
+**Untested since:** the Host/Client switch itself, and everything in Phase 1. Next real test
+should confirm both cars spawn under the host, both drive, the timer is synced, and the match
+starts for both.
 
-## Known gaps / not yet built
+## Open
 
-- No bot AI — `MatchStarter.StartMatch`'s `botCount` parameter is currently just logged, no
-  bot-driven car gets spawned for it.
-- No player-vs-player collision/contact resolution logic beyond what PhysX + Forecast Physics's
-  correction heuristics give for free.
-- No visual distinction between your own car and another player's.
-- `Game.unity` needs to be added back to Build Settings manually after first running
-  `Game → Setup Game Scene` in the Editor (the scene file — and its GUID — doesn't exist until
-  then, so this couldn't be done from outside Unity).
+- **Tick rate (ruling N2)** — FD-05 says the mode can't be finally tuned until it's ruled on; at
+  30Hz the drift release window's wall-clock duration doubles. `NetworkProjectConfig` currently
+  uses Fusion defaults.
+- **`ParticipantRef` vs `PlayerRef`** — bots have no `PlayerRef`, so Glowtag addresses every
+  participant by a `ParticipantRef` (FD-05/FD-07). Current code is `PlayerRef` throughout. Needs
+  an abstraction before bots land.
+- **`Game.unity` in Build Settings** — must be added manually after first running
+  `Game → Setup Game Scene`, since the scene and its GUID don't exist until then.

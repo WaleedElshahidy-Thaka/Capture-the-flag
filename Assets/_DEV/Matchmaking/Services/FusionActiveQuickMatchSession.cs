@@ -19,21 +19,20 @@ public class FusionActiveQuickMatchSession : IActiveQuickMatchSession
 
     bool SessionValid => runner != null && runner.SessionInfo.IsValid;
 
-    // HasStateAuthority, not HasInputAuthority - see PlayerMatchState.Spawned() for why: this
-    // is always this client's own object regardless of whether PlayerMovement has assigned
-    // Input Authority yet.
-    PlayerMatchState OwnPlayerState => PlayerMatchState.Active.FirstOrDefault(p => p.Object.HasStateAuthority);
+    // HasInputAuthority - the per-player authority. Under Host/Client the host holds State
+    // Authority over every car, so HasStateAuthority would not identify "mine" on any peer.
+    PlayerMatchState OwnPlayerState => PlayerMatchState.Active.FirstOrDefault(p => p.Object.HasInputAuthority);
     MatchmakingSessionState SessionState => MatchmakingSessionState.Local;
 
     public int PlayerCount => SessionValid ? runner.SessionInfo.PlayerCount : 0;
     public int MaxPlayers => SessionValid ? runner.SessionInfo.MaxPlayers : MatchmakingConfig.MaxPlayers;
-    // No host in Shared Mode - closest analog is the room's master client, kept under the same
-    // name since callers just use this to show "you're in charge of X" state, not to gate any
-    // Fusion authority check (those go through Object.HasStateAuthority instead).
-    public bool IsHost => runner != null && runner.IsSharedModeMasterClient;
+    // There genuinely is a host now (AutoHostOrClient), it's just never surfaced to players -
+    // nothing in the UI reads this. Kept because match-authority code needs to ask.
+    public bool IsHost => runner != null && runner.IsServer;
 
-    public float ElapsedSeconds => OwnPlayerState != null ? OwnPlayerState.ElapsedSeconds : 0f;
-    public bool BotOptionUnlocked => OwnPlayerState != null && OwnPlayerState.BotOptionUnlocked;
+    // Session-wide, not per-player - a shared lobby clock, same number for everyone searching.
+    public float ElapsedSeconds => SessionState != null ? SessionState.ElapsedSeconds : 0f;
+    public bool BotOptionUnlocked => SessionState != null && SessionState.BotOptionUnlocked;
 
     public bool IsReady => OwnPlayerState != null && OwnPlayerState.IsReady;
 

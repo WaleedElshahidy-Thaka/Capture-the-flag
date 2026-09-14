@@ -42,8 +42,11 @@ public static class GameSceneSetup
         EnsureFolders();
         OpenOrCreateScene();
 
-        BuildFloor();
-        BuildWalls();
+        var arena = GetOrCreateArenaBounds();
+        BuildFloor(arena);
+        BuildWalls(arena);
+        BuildRamp();
+        BuildCurve();
         BuildCamera();
 
         BuildPlayerCarPrefab();
@@ -83,30 +86,51 @@ public static class GameSceneSetup
 
     // ─── Arena (from the retired DriveSceneSetup) ───────────────────────
 
-    static void BuildFloor()
+    // Sized from the scene's ArenaBounds component rather than hardcoded here, so the size can
+    // be changed in the inspector and survives re-running this command. Created with defaults
+    // on a fresh scene; an existing one keeps whatever was set on it.
+    static ArenaBounds GetOrCreateArenaBounds()
     {
-        if (GameObject.Find("Floor") != null) return;
+        var go = GetOrCreatePlain("ArenaBounds", null, typeof(ArenaBounds));
+        return go.GetComponent<ArenaBounds>();
+    }
+
+    // Rebuilt from ArenaBounds every run rather than skipped-if-present, so changing the size in
+    // the inspector and re-running actually resizes the arena.
+    static void BuildFloor(ArenaBounds arena)
+    {
+        var existing = GameObject.Find("Floor");
+        if (existing != null) UnityEngine.Object.DestroyImmediate(existing);
 
         var floor = GameObject.CreatePrimitive(PrimitiveType.Plane);
         floor.name = "Floor";
         floor.transform.position = Vector3.zero;
-        floor.transform.localScale = new Vector3(5f, 1f, 5f);
+        // Unity's plane primitive is 10 units across at scale 1.
+        float planeScale = arena.FloorSize / 10f;
+        floor.transform.localScale = new Vector3(planeScale, 1f, planeScale);
         Undo.RegisterCreatedObjectUndo(floor, UndoLabel);
     }
 
     // Arena boundary so wall hits are actually testable - plain colliders, no Rigidbody, so
-    // they're static/immovable to PhysX by default.
-    static void BuildWalls()
+    // they're static/immovable to PhysX by default. Closed on all four sides, per Glowtag FD-06
+    // ("fully closed, no out-of-bounds volume, no falls, no gaps").
+    static void BuildWalls(ArenaBounds arena)
     {
-        if (GameObject.Find("Walls") != null) return;
+        var existing = GameObject.Find("Walls");
+        if (existing != null) UnityEngine.Object.DestroyImmediate(existing);
 
         var wallsParent = new GameObject("Walls");
         Undo.RegisterCreatedObjectUndo(wallsParent, UndoLabel);
 
-        BuildWall(wallsParent.transform, "Wall_North", new Vector3(0f, 1f, 25f), new Vector3(50f, 2f, 1f));
-        BuildWall(wallsParent.transform, "Wall_South", new Vector3(0f, 1f, -25f), new Vector3(50f, 2f, 1f));
-        BuildWall(wallsParent.transform, "Wall_East", new Vector3(25f, 1f, 0f), new Vector3(1f, 2f, 50f));
-        BuildWall(wallsParent.transform, "Wall_West", new Vector3(-25f, 1f, 0f), new Vector3(1f, 2f, 50f));
+        float e = arena.HalfExtent;
+        float h = arena.WallHeight;
+        float t = arena.WallThickness;
+        float span = arena.FloorSize + t;
+
+        BuildWall(wallsParent.transform, "Wall_North", new Vector3(0f, h * 0.5f, e), new Vector3(span, h, t));
+        BuildWall(wallsParent.transform, "Wall_South", new Vector3(0f, h * 0.5f, -e), new Vector3(span, h, t));
+        BuildWall(wallsParent.transform, "Wall_East", new Vector3(e, h * 0.5f, 0f), new Vector3(t, h, span));
+        BuildWall(wallsParent.transform, "Wall_West", new Vector3(-e, h * 0.5f, 0f), new Vector3(t, h, span));
     }
 
     static void BuildWall(Transform parent, string name, Vector3 position, Vector3 scale)
@@ -116,6 +140,66 @@ public static class GameSceneSetup
         wall.transform.SetParent(parent, false);
         wall.transform.position = position;
         wall.transform.localScale = scale;
+    }
+
+    // Terrain to actually test driving physics against, not just a flat plate - player spawns
+    // (see PlayerLobbySpawner.SpawnOffsets) cluster near the arena center, so both features sit
+    // well clear of them, out toward the +Z and -X edges of the 50x50 arena.
+    static void BuildRamp()
+    {
+        if (GameObject.Find("Ramp") != null) return;
+
+        var parent = new GameObject("Ramp");
+        Undo.RegisterCreatedObjectUndo(parent, UndoLabel);
+
+        var incline = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        incline.name = "Incline";
+        incline.transform.SetParent(parent.transform, false);
+        incline.transform.position = new Vector3(0f, 1.7f, 15f);
+        incline.transform.rotation = Quaternion.Euler(-22f, 0f, 0f);
+        incline.transform.localScale = new Vector3(6f, 0.5f, 9f);
+
+        var platform = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        platform.name = "Platform";
+        platform.transform.SetParent(parent.transform, false);
+        platform.transform.position = new Vector3(0f, 3.6f, 21.5f);
+        platform.transform.localScale = new Vector3(7f, 0.5f, 6f);
+    }
+
+    // A banked curved section, built from overlapping straight segments (this project only
+    // ever builds scenes from primitives, no custom meshes) following an arc - something to
+    // actually test steering/drift/grip on besides straight flat ground.
+    static void BuildCurve()
+    {
+        if (GameObject.Find("Curve") != null) return;
+
+        var parent = new GameObject("Curve");
+        Undo.RegisterCreatedObjectUndo(parent, UndoLabel);
+
+        const int segmentCount = 14;
+        const float radius = 11f;
+        const float arcDegrees = 150f;
+        const float trackWidth = 6f;
+        const float bankAngle = 10f; // degrees, tilts each segment toward the inside of the turn
+        Vector3 center = new Vector3(-18f, 0f, -6f);
+
+        float segAngle = arcDegrees / segmentCount;
+        // Slight overlap so consecutive segments don't leave a gap a wheel could drop into.
+        float segLength = 2f * radius * Mathf.Sin(segAngle * Mathf.Deg2Rad * 0.5f) * 1.1f;
+
+        for (int i = 0; i < segmentCount; i++)
+        {
+            float angle = (i + 0.5f) * segAngle;
+            float rad = angle * Mathf.Deg2Rad;
+            Vector3 pos = center + new Vector3(Mathf.Sin(rad), 0f, Mathf.Cos(rad)) * radius;
+
+            var segment = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            segment.name = $"CurveSegment_{i}";
+            segment.transform.SetParent(parent.transform, false);
+            segment.transform.position = pos + Vector3.up * 0.25f;
+            segment.transform.rotation = Quaternion.Euler(0f, angle, bankAngle);
+            segment.transform.localScale = new Vector3(trackWidth, 0.5f, segLength);
+        }
     }
 
     // No target wired here - the car this should follow doesn't exist at edit time, only once
@@ -147,7 +231,7 @@ public static class GameSceneSetup
     static void BuildPlayerCarPrefab()
     {
         var existing = GameObject.Find("PlayerCarBuildTemp");
-        GameObject go = existing != null ? existing : new GameObject("PlayerCarBuildTemp", typeof(Rigidbody), typeof(BoxCollider));
+        GameObject go = existing != null ? existing : new GameObject("PlayerCarBuildTemp", typeof(Rigidbody));
 
         var body = go.GetComponent<Rigidbody>();
         body.mass = 50f;
@@ -155,10 +239,6 @@ public static class GameSceneSetup
         body.angularDamping = 3f;
         body.interpolation = RigidbodyInterpolation.Interpolate;
         body.constraints = RigidbodyConstraints.FreezeRotationX | RigidbodyConstraints.FreezeRotationZ;
-
-        var collider = go.GetComponent<BoxCollider>();
-        collider.size = new Vector3(1.2f, 0.8f, 1.6f);
-        collider.center = new Vector3(0f, 0.4f, 0f);
 
         if (go.GetComponent<PlayerMovement>() == null) Undo.AddComponent<PlayerMovement>(go);
         if (go.GetComponent<PlayerMatchState>() == null) Undo.AddComponent<PlayerMatchState>(go);
@@ -187,24 +267,116 @@ public static class GameSceneSetup
         if (visualCollider != null) UnityEngine.Object.DestroyImmediate(visualCollider);
 
         WireTires(go, visual);
+        BuildColliders(go, visual);
 
         PrefabUtility.SaveAsPrefabAsset(go, PlayerCarPrefabPath);
         UnityEngine.Object.DestroyImmediate(go);
     }
 
+    // A compound of primitives that approximates the robot's actual shape: one box for the body
+    // sitting above the wheels, plus a sphere at each wheel. Not one box around everything, and
+    // not mesh colliders (non-convex meshes on a moving Rigidbody are unreliable in PhysX).
+    //
+    // Why the shape matters now that the Rigidbody's rotation is no longer frozen: a single box
+    // tumbles and rests like a box, which is what made the car slide over ground obstacles
+    // instead of riding them. With the body raised clear of ride height, the raycast probes own
+    // ground contact while upright - and if the car does end up on its side, it rests on its
+    // real silhouette instead of a crate.
+    //
+    // The body box is deliberately raised well above the wheels so it never touches the floor in
+    // normal driving. When it did (bottom 5cm above ride height), PhysX's box contact won over
+    // the suspension and the whole car moved as one rigid block.
+    static void BuildColliders(GameObject car, GameObject visual)
+    {
+        // Idempotent: drop whatever colliders exist from a previous run before rebuilding,
+        // rather than accumulating duplicates each time this menu command re-runs.
+        foreach (var existingCollider in car.GetComponents<Collider>())
+            UnityEngine.Object.DestroyImmediate(existingCollider);
+
+        float wheelRadius = ResolveWheelRadius(visual);
+
+        var chassisBody = Undo.AddComponent<BoxCollider>(car);
+        chassisBody.size = new Vector3(0.9f, 0.7f, 1.1f);
+        chassisBody.center = new Vector3(0f, wheelRadius * 2f + 0.15f, 0f);
+
+        AddWheelSphere(car, visual, "Tire_Left", wheelRadius);
+        AddWheelSphere(car, visual, "Tire_Right", wheelRadius);
+        AddWheelSphere(car, visual, "Tire_Left (1)", wheelRadius);
+        AddWheelSphere(car, visual, "Tire_Right (1)", wheelRadius);
+    }
+
+    // Wheels are real colliders so the car rests and tumbles on its wheels rather than on a box
+    // edge. In normal upright driving the raycast suspension holds the chassis at exactly the
+    // height where these just touch, so the two systems agree instead of fighting - see
+    // PlayerMovement's suspension rest length, which is set to this same radius.
+    static void AddWheelSphere(GameObject car, GameObject visual, string tireName, float radius)
+    {
+        var tire = visual.transform.Find(tireName);
+        if (tire == null) return;
+
+        var wheel = Undo.AddComponent<SphereCollider>(car);
+        wheel.center = car.transform.InverseTransformPoint(tire.position);
+        wheel.radius = radius;
+    }
+
+    // Measured from the art rather than assumed: the wheel's own renderer bounds give the real
+    // radius, so probe rest height and collider size follow the model instead of a guess.
+    static float ResolveWheelRadius(GameObject visual)
+    {
+        var tire = visual.transform.Find("Tire_Left");
+        if (tire == null) return 0.3f;
+
+        var renderer = tire.GetComponentInChildren<Renderer>();
+        if (renderer == null) return 0.3f;
+
+        // Half the wheel's vertical extent, in the car's own scale.
+        return Mathf.Max(0.05f, renderer.bounds.extents.y);
+    }
+
     // PlayerRobot.prefab's own child names/positions - "Tire_Left"/"Tire_Right" sit further
-    // forward (+Z) than the "(1)" pair, so those are the front (steered) wheels.
+    // forward (+Z) than the "(1)" pair, so those are the front (steered) wheels. Also wires
+    // "visual" itself (the tires' parent) - PlayerMovement rotates that whole transform for the
+    // cosmetic lean-into-curves/slopes effect, never the Rigidbody.
+    //
+    // Probe origins are baked here as fixed local positions taken from where the wheels actually
+    // are in the art, rather than read live from the tire transforms at runtime: those get
+    // rotated every frame by the cosmetic steer/roll animation, which would make the suspension
+    // origins wobble. Measuring them once, here, means the probes sit exactly under the wheels
+    // without inheriting the animation.
     static void WireTires(GameObject car, GameObject visual)
     {
         var movement = car.GetComponent<PlayerMovement>();
         if (movement == null) return;
 
+        var frontLeft = visual.transform.Find("Tire_Left");
+        var frontRight = visual.transform.Find("Tire_Right");
+        var rearLeft = visual.transform.Find("Tire_Left (1)");
+        var rearRight = visual.transform.Find("Tire_Right (1)");
+
         var so = new SerializedObject(movement);
-        so.FindProperty("frontLeftTire").objectReferenceValue = visual.transform.Find("Tire_Left");
-        so.FindProperty("frontRightTire").objectReferenceValue = visual.transform.Find("Tire_Right");
-        so.FindProperty("rearLeftTire").objectReferenceValue = visual.transform.Find("Tire_Left (1)");
-        so.FindProperty("rearRightTire").objectReferenceValue = visual.transform.Find("Tire_Right (1)");
+        so.FindProperty("visual").objectReferenceValue = visual.transform;
+        so.FindProperty("frontLeftTire").objectReferenceValue = frontLeft;
+        so.FindProperty("frontRightTire").objectReferenceValue = frontRight;
+        so.FindProperty("rearLeftTire").objectReferenceValue = rearLeft;
+        so.FindProperty("rearRightTire").objectReferenceValue = rearRight;
+
+        // Order matches GroundProbes' contract: front-left, front-right, rear-left, rear-right.
+        SetProbeOffset(so, car, 0, frontLeft);
+        SetProbeOffset(so, car, 1, frontRight);
+        SetProbeOffset(so, car, 2, rearLeft);
+        SetProbeOffset(so, car, 3, rearRight);
+
+        so.FindProperty("wheelRadius").floatValue = ResolveWheelRadius(visual);
         so.ApplyModifiedProperties();
+    }
+
+    static void SetProbeOffset(SerializedObject so, GameObject car, int index, Transform tire)
+    {
+        var array = so.FindProperty("probeOffsets");
+        if (array.arraySize < 4) array.arraySize = 4;
+        if (tire == null) return;
+
+        array.GetArrayElementAtIndex(index).vector3Value = car.transform.InverseTransformPoint(tire.position);
     }
 
     // ─── Matchmaking prefabs (from the retired MatchmakingSceneSetup) ───

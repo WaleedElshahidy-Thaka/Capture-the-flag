@@ -10,34 +10,38 @@ for when that scope comes back, not part of this build.
   together, no second scene, no scene load between the two phases. Built by
   `Game/Editor/GameSceneSetup.cs` (`Game/Setup Game Scene` menu item). See
   `Documentation/Networking_Progress.md` for the full networking approach and current status.
-- **Game/Player/** — `PlayerMovement.cs` (driving physics only), `PlayerMatchState.cs`
-  (ready/searching/`CanMove` — a sibling component, kept separate from PlayerMovement on
-  purpose, see its own doc comment), `PlayerCamera.cs`, `PlayerNetInput.cs`,
-  `PlayerInputSampler.cs` (keyboard → networked input, called from
+- **Game/Vehicle/** — Layer B, the drive model's own pieces: `GroundProbes.cs` (four corner
+  raycasts, no knowledge of driving) and `HandlingValues.cs` (every feel value in one
+  serializable class). See `Documentation/Vehicle_Model.md`.
+- **Game/Player/** — `PlayerMovement.cs` (the per-tick simulation), `PlayerMatchState.cs`
+  (ready/searching/`CanMove` — a sibling component, kept separate on purpose), `PlayerCamera.cs`,
+  `PlayerNetInput.cs`, `PlayerInputSampler.cs` (keyboard → networked input, called from
   `Matchmaking/Services/QuickMatchFusionService.cs`'s `OnInputAction`), and
-  `Player/Resources/PlayerCar.prefab` (the one networked object per player — spawned and
-  positioned the moment they connect, by `Matchmaking/Services/PlayerLobbySpawner.cs`; not
-  drivable until `Matchmaking/Flow/MatchStarter.cs` flips `PlayerMatchState.CanMove`).
-- **Game/Scenes/LocalDrive.unity** — a separate, deliberately non-networked reference/testing
-  scene: no Fusion, no NetworkRunner, just the car movement and camera on their own. For tuning
-  the driving feel itself without any networking in the way.
-- **Game/LocalDrive/** — `LocalPlayerMovement.cs`, `LocalPlayerCamera.cs`, used only by
-  LocalDrive.unity. Separate classes from `Game/Player/`'s networked versions (same project,
-  no namespaces, so names can't collide) - not a fork to keep in sync, just the same simple
-  driving logic with no Fusion dependency, kept intentionally frozen.
-- **Game/Art/Bolt/** — the player robot model (`PlayerRobot.prefab`) used by both scenes.
-- **Game/Editor/LocalDriveSceneSetup.cs** — builds/resets LocalDrive.unity
-  (`Game/Setup Local Drive Scene` menu item).
+  `Player/Resources/PlayerCar.prefab` (the one networked object per player — spawned by the host
+  the moment they connect, via `Matchmaking/Services/PlayerLobbySpawner.cs`; not drivable until
+  `MatchmakingSessionState.TriggerStart` releases `PlayerMatchState.CanMove`).
+- **Game/Arena/** — `ArenaBounds.cs`, the serialized arena dimensions. Placeholder until the art
+  team's arena arrives; the component then moves onto the real one and keeps the same role.
+- **Game/Art/Bolt/** — the player robot model (`PlayerRobot.prefab`).
+- `Game.unity`'s arena includes a ramp and a banked curved section (`GameSceneSetup.cs`'s
+  `BuildRamp()`/`BuildCurve()`), for testing driving against something other than flat ground.
+  Everything is built from primitives — no custom meshes.
 - **Matchmaking/** — Find Match flow: Quick Match via Photon Fusion (`GameMode.Shared`, no
   visible host — see `Documentation/Networking_Progress.md`), ready-toggle + bot-fill start
   logic (bot AI itself not built yet). Connecting happens automatically on scene start, not
   behind a button — Find Match only flags this player as actively searching. No 3D lobby
   placeholder visuals (deleted; see Networking_Progress.md's history section) — you see the
   real `PlayerCar`s of everyone connected, from the moment they connect.
-- **Documentation/** — `Networking_Progress.md` (what's built, how, and current status) and
-  `Roadmap.md` (what's next — collision, game manager, scoring, lives, art/polish — none of it
-  started yet). Docs for shelved work move to `Future_DEV/Documentation/` instead, so this
-  folder never goes stale.
+- **Documentation/** — `Roadmap.md` (phases, rulings, what's next), `Vehicle_Model.md` (the
+  drive model: architecture, why, current state, tuning) and `Networking_Progress.md` (topology,
+  authority, replication). The GDD under `Assets/GDD/` is the source of truth above all three.
+  Docs for shelved work move to `Future_DEV/Documentation/` instead, so this folder never goes
+  stale.
+
+Note: there is no separate non-networked test scene anymore — an earlier `LocalDrive.unity` +
+`LocalPlayerMovement.cs`/`LocalPlayerCamera.cs`/`LocalDriveSceneSetup.cs` existed for tuning
+driving feel without networking involved; removal confirmed intentional. Driving-feel testing
+(ramp/curve included) goes through `Game.unity`'s full Fusion flow now.
 
 ## Not built yet
 
