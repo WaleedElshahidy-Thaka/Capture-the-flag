@@ -10,11 +10,16 @@ using UnityEngine;
 //            while backing up.
 //
 // The switch is driven by PlayerMatchState.CanMove, which the host releases on match start -
-// no explicit "start the game camera" call needed anywhere. Reads the target's real Rigidbody
-// directly - no separate synced/visual object, same object PlayerMovement drives.
+// no explicit "start the game camera" call needed anywhere.
+//
+// Position and facing come from the car's View child - the transform NetworkRigidbody
+// interpolates between ticks - not from the physics root, which only moves at tick rate and
+// would make the camera step at 60Hz under a higher frame rate. Velocity still comes from the
+// Rigidbody, since the View has none.
 public class PlayerCamera : MonoBehaviour
 {
     [SerializeField] Rigidbody target;
+    [SerializeField] Transform view;
     [SerializeField] PlayerMatchState matchState;
 
     [Header("Follow view (match)")]
@@ -29,21 +34,37 @@ public class PlayerCamera : MonoBehaviour
 
     // Set at runtime by PlayerMovement.Spawned() - the car it should follow no longer exists
     // at edit time now that each player's car is spawned dynamically, not scene-placed.
-    public void SetTarget(Rigidbody newTarget, PlayerMatchState newMatchState)
+    public void SetTarget(Rigidbody newTarget, Transform newView, PlayerMatchState newMatchState)
     {
         target = newTarget;
+        view = newView != null ? newView : newTarget.transform;
         matchState = newMatchState;
         initialized = false;
     }
 
     bool InMatch => target != null && matchState != null && matchState.CanMove;
+    bool wasInMatch;
 
     // The lobby shot needs no target at all, so it shows from the first frame - before this
-    // client's own car has even spawned - and is the same picture on every peer.
+    // client's own car has even spawned - and is the same picture on every peer. Losing the
+    // car mid-match (host migration destroys every object, then rebuilds them) holds the last
+    // view rather than cutting to the lobby shot behind the "reconnecting" overlay.
     void LateUpdate()
     {
-        if (InMatch) FollowView();
-        else LobbyView();
+        if (InMatch)
+        {
+            FollowView();
+            wasInMatch = true;
+        }
+        else if (target == null && wasInMatch)
+        {
+            // hold
+        }
+        else
+        {
+            LobbyView();
+            wasInMatch = false;
+        }
     }
 
     void LobbyView()
@@ -52,14 +73,14 @@ public class PlayerCamera : MonoBehaviour
         transform.rotation = LobbyLayout.CameraRotation;
 
         // Seed the follow view so the hand-off on match start swings smoothly from behind.
-        if (target != null) followDirection = target.transform.forward;
+        if (view != null) followDirection = view.forward;
         initialized = false;
     }
 
     void FollowView()
     {
         Vector3 velocity = target.linearVelocity;
-        Vector3 carForward = target.transform.forward;
+        Vector3 carForward = view.forward;
         float forwardSpeed = Vector3.Dot(velocity, carForward);
 
         Vector3 desired;
@@ -78,7 +99,7 @@ public class PlayerCamera : MonoBehaviour
         followDirection = initialized ? Vector3.Slerp(followDirection, desired, alpha) : desired;
         initialized = true;
 
-        Vector3 pivot = target.transform.position + Vector3.up * height;
+        Vector3 pivot = view.position + Vector3.up * height;
         Vector3 desiredPosition = pivot - followDirection * distance;
         Quaternion desiredRotation = Quaternion.LookRotation(followDirection, Vector3.up) * Quaternion.Euler(pitch, 0f, 0f);
 

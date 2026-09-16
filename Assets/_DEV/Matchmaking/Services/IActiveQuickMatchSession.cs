@@ -13,18 +13,31 @@ public interface IActiveQuickMatchSession
     // stays up until then.
     bool IsLocalPlayerSpawned { get; }
 
-    // How many connected players have pressed Quick Match, as opposed to just being in the
-    // arena. This is what counts toward a match.
-    int SearchingCount { get; }
     bool IsSearching { get; }
     void SetSearching(bool searching);
 
-    // The displayed timer. Alone, it's your own (from your Quick Match press). With 2+ players
-    // searching together it's the highest of theirs - the shared timer.
+    // The moment a second searcher appears, the authority pairs everyone searching: each counts
+    // the same LobbyJoinCountdownSeconds down ("Player found! Joining lobby in N") and enters
+    // the lobby on the same tick. > 0 only while that countdown is running.
+    float LobbyJoinSecondsRemaining { get; }
+    bool InLobby { get; }
+
+    // Players whose countdown has finished - the ones you can see, and whose timers are
+    // shared. This is what counts toward a match.
+    int LobbyCount { get; }
+
+    // The displayed timer. Before you're in the lobby it's your own (from your Quick Match
+    // press). In the lobby it's the highest of everyone there - the shared timer.
     float ElapsedSeconds { get; }
 
     // True once ElapsedSeconds passes MatchmakingConfig.BotOptionUnlockSeconds.
     bool BotOptionUnlocked { get; }
+
+    // After a host migration: every car holds still until the new host has everyone back (or
+    // gives up waiting), then all peers count down to the same tick. ResumeSecondsRemaining is
+    // negative while still waiting - the UI shows no number it can't promise.
+    bool IsFrozen { get; }
+    float ResumeSecondsRemaining { get; }
 
     // This client's own ready state (2+ players, after the bot option unlocked).
     bool IsReady { get; }

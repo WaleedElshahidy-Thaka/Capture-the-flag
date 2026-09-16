@@ -14,7 +14,7 @@ using UnityEngine;
 public struct ProbeResult
 {
     public bool HasContact;
-    public float Compression;         // 0 at full extension, 1 fully compressed
+    public float Compression;         // 0 at rest height, +1 pushed a full rest length up into the chassis, negative hanging below rest
     public float CompressionVelocity; // positive while compressing
     public Vector3 GroundNormal;
     public Vector3 ContactPoint;
@@ -50,8 +50,11 @@ public static class GroundProbes
         result.HasContact = true;
         result.GroundNormal = hit.normal;
         result.ContactPoint = hit.point;
+        // Signed, around the rest height: the spring pulls the chassis DOWN toward rest when a
+        // wheel hangs below it, not only pushes up when compressed. That's what lets the
+        // equilibrium sit exactly at restLength (see PlayerMovement's suspension step).
         result.Compression = restLength > 0f
-            ? Mathf.Clamp01((restLength - hit.distance) / restLength)
+            ? Mathf.Clamp((restLength - hit.distance) / restLength, -1f, 1f)
             : 0f;
 
         // Derived from the body's current motion at this point rather than from a remembered

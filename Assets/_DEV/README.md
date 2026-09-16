@@ -14,12 +14,17 @@ for when that scope comes back, not part of this build.
   raycasts, no knowledge of driving) and `HandlingValues.cs` (every feel value in one
   serializable class). See `Documentation/Vehicle_Model.md`.
 - **Game/Player/** — `PlayerMovement.cs` (the per-tick simulation), `PlayerMatchState.cs`
-  (ready/searching/`CanMove` — a sibling component, kept separate on purpose), `PlayerCamera.cs`,
+  (ready/searching/`CanMove`/owner token — a sibling component, kept separate on purpose),
+  `BotDriver.cs` (the input source for a car nobody is driving; placeholder brain),
+  `PlayerIdentity.cs` (display name + the per-install id that survives a host migration),
+  `PlayerCamera.cs`,
   `PlayerNetInput.cs`, `PlayerInputSampler.cs` (keyboard → networked input, called from
   `Matchmaking/Services/QuickMatchFusionService.cs`'s `OnInputAction`), and
   `Player/Resources/PlayerCar.prefab` (the one networked object per player — spawned by the host
   the moment they connect, via `Matchmaking/Services/PlayerLobbySpawner.cs`; not drivable until
-  `MatchmakingSessionState.TriggerStart` releases `PlayerMatchState.CanMove`).
+  `MatchmakingSessionState.TriggerStart` releases `PlayerMatchState.CanMove`). Its hierarchy:
+  root (Rigidbody, colliders, `NetworkRigidbody`, the scripts) → `View` (the render-only
+  interpolation target) → `Visual` (the robot art) and `NameTag`.
 - **Game/Arena/** — `ArenaBounds.cs`, the serialized arena dimensions. Placeholder until the art
   team's arena arrives; the component then moves onto the real one and keeps the same role.
 - **Game/Art/Bolt/** — the player robot model (`PlayerRobot.prefab`).
@@ -30,10 +35,14 @@ for when that scope comes back, not part of this build.
   host never surfaced to players — see `Documentation/Networking_Progress.md`): per-player search
   timer → shared "player found" countdown → lobby with ready toggle → bot-fill start (bot AI
   itself not built yet). Connects on scene start behind a black loading screen; Quick Match
-  flags you as searching; timer is shared (highest) once 2+ search together; 30 s unlocks the
-  bot option (solo: immediate; 2+: ready toggle). Other players' cars are hidden until you're
-  both searching (`PlayerLobbyVisibility`). Full spec in `Networking_Progress.md`. Live code in
-  `_DEV` no longer depends on anything in `Future_DEV`.
+  flags you as searching; a second searcher triggers "Player found! Joining lobby in 3" on both,
+  then you see each other and the timer is shared (highest); 30 s unlocks the bot option (solo:
+  immediate; 2+: ready toggle). Other players' cars are hidden until you're both in the lobby
+  (`PlayerLobbyVisibility`). Full spec in `Networking_Progress.md`. **Host migration** lives
+  here too: `Services/QuickMatchFusionService.cs` (the hand-over), `Services/PlayerLobbySpawner.cs`
+  (re-matching players to their cars by token), `Network/MatchmakingSessionState.cs` (the
+  freeze and the shared resume countdown). Live code in `_DEV` no longer depends on anything in
+  `Future_DEV`.
 - **Documentation/** — `Roadmap.md` (phases, rulings, what's next), `Vehicle_Model.md` (the
   drive model: architecture, why, current state, tuning) and `Networking_Progress.md` (topology,
   authority, replication). The GDD under `Assets/GDD/` is the source of truth above all three.
@@ -47,9 +56,9 @@ driving feel without networking involved; removal confirmed intentional. Driving
 
 ## Not built yet
 
-See `Documentation/Roadmap.md` for the full breakdown. Short version: no bot AI, no
-player-vs-player collision/contact resolution beyond default PhysX + Forecast Physics
-correction, no game manager or win-condition flow, no scoring, no death/lives, no visual
+See `Documentation/Roadmap.md` for the full breakdown. Short version: no bot AI (a bot-driven
+car parks), no player-vs-player collision/contact resolution beyond default PhysX, no game manager or
+win-condition flow, no scoring, no death/lives, no visual
 distinction between your own car and another player's, and only placeholder art.
 
 ## Conventions carried over from Future_DEV

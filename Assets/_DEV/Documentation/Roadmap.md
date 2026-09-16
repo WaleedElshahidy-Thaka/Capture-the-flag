@@ -21,6 +21,8 @@ a real player didn't. Possession is the verb, score is the win condition.
 | Participants | **6**, per FD-07. Bots fill every empty slot, so the field is always full |
 | Handling values | **Serialized fields first**, lifted to ScriptableObject profiles once tuned |
 | Arena scale | **Serialized** on `ArenaBounds`, editable in the inspector, until the art team's arena arrives |
+| Host disconnect | **Host migration** — freeze, hand over, shared "resumes in 3" — owner's ruling 2026-09-16 after the first two-PC test lost a match to the host quitting. FD-05's "accepted knowingly" is superseded. Options brief given to design; their rulings on round-timer pause and bot naming are pending |
+| Player leaves mid-match | **Car becomes a bot in place** (FD-07: the field stays at six). Keeps name, position, later score and Crown |
 
 ## Phase 0 — Network topology ✅
 
@@ -48,6 +50,80 @@ camera wiring.
 **Known regression until Phase 2:** wall and car contact is crude, because a direct velocity
 write partly overwrites PhysX's collision response. That is what Phase 2 replaces with authored
 resolution — not something to patch here.
+
+## Phase 1.5 — Matchmaking flow & simulation stepping (2026-09-15) ✅ built, ⏳ untested
+
+Not a GDD phase — a pass over what Phase 0/1 exposed once two people actually sat in the lobby.
+Full spec in `Networking_Progress.md` ("Matchmaking flow"), physics detail in `Vehicle_Model.md`.
+
+**Matchmaking flow.** Connects on scene start behind a black `Loading` panel (new first
+`MatchmakingPhase`) that lifts when your own car is seated (`IsLocalPlayerSpawned`). Quick Match
+is a flag, not a connect. Timer is per-player (`SearchStartTick`) and the shown value becomes
+the **highest** of everyone searching (`MatchmakingSessionState.SharedElapsedSeconds`) — the
+first fix synced everyone to the first searcher's clock, which restarted nobody's timer but
+started late joiners at whatever the first searcher had reached. 30 s unlocks the bot option:
+solo → immediate; 2+ → "Play with computer players" is the ready toggle; 6 → immediate start.
+
+**Lobby presentation.** `PlayerIdentity` + `PlayerNameTag` (networked `DisplayName`, world-space
+tag). `LobbyLayout` seats cars in a row by `PlayerId` and places the lobby camera; other cars
+are hidden until both of you are searching (`PlayerLobbyVisibility`). `RunnerCallbackRelay`
+moved from `Future_DEV` into `Matchmaking/Network/` so live code has no `Future_DEV` dependency.
+
+**Simulation stepping.** `RunnerSimulatePhysics` (Fusion Physics addon — the stepper only, no
+`NetworkRigidbody`) now runs PhysX once per Fusion tick. Before, the 60 Hz velocity write raced
+Unity's 50 Hz `FixedUpdate`; a tick with no physics step behind it moved nothing, then the next
+one moved double. `PlayerMovement` is `[DefaultExecutionOrder(-50)]` so it runs before the
+stepper; Rigidbody interpolation is off (Fusion's own interpolation owns visual smoothing).
+
+**Two Phase 1 corrections.** Lateral grip was a fraction-per-tick (`0.86` × 60/s — a rail; the
+drift button barely slid) and is now a per-second rate (`GripRate` 20, `DriftGripRate` 3, decay
+`exp(-rate·dt)`). And `constraints = None` is set **in code** as well as on the prefab: the
+levelling in `ResolveAttitude` fights a frozen X/Z, and a stale prefab can't be allowed to
+reintroduce that silently.
+
+**2026-09-16 test report + fixes.** Two peers: lobby, name tags, camera, stepping all ran.
+The client's own car flickered heavily while driving (host slightly). Cause: `NetworkTransform`
++ Forecast Physics on a Rigidbody — rollback restored position but not velocity, and Forecast
+and `RunnerSimulatePhysics` both stepped the body. Replaced with the Physics addon's
+`NetworkRigidbody` (position + rotation + velocity restored on rollback; render interpolation
+on a `View` child, so PhysX never sees a render write), Forecast off. Flow edits from the same
+session: a **Found** phase — a second searcher triggers "Player found! Joining lobby in 3…2…1"
+on both from one host-stamped tick, and only then do they see each other and share the timer;
+and the READY tag clears on match start.
+
+**Confirmed:** no flicker with `NetworkRigidbody`; Found countdown and READY clear work. Two
+follow-ups from that test — a parked car creeping by itself on a slope edge, and no yaw at a
+standstill — traced to three drive-model defects (`Vehicle_Model.md`): gravity applied twice
+(PhysX + model), the suspension's equilibrium 39% below rest height with the wheel spheres
+pressed into the floor, and the `CanMove` gate missing since the Phase 1 rewrite. Fixed:
+preloaded suspension, model-owned gravity (world-space while airborne), gate restored.
+
+**Confirmed later that day:** no flicker, Found flow, READY clear. Steering at a standstill was
+then ruled the *other* way — no pivoting in place, like a real car — so `SpeedScalingCurve` now
+starts at zero and reverse steers with the nose swinging the other way.
+
+## Phase 1.6 — Host migration & leaver bots (2026-09-16) ✅ built, ⏳ untested
+
+Pulled forward from "not requested" after the first two-PC test: the friend's .exe was the host,
+he closed it, the match died for everyone (`ServerLogic: Server has disconnected`). Design
+brief with the three options (accept / hand over / dedicated servers) was written; owner ruled
+hand-over. Full mechanism in `Networking_Progress.md`, "Host migration".
+
+In one line: Fusion elects a new host from a 2-second cloud snapshot; players are re-matched to
+their cars by a per-install connection token; the new host freezes the match until everyone is
+back (10 s window) then counts all peers down to one shared resume tick; whoever doesn't return
+— the old host always — is driven by `BotDriver`, whose placeholder brain parks. Same bot
+takeover serves a player who simply quits mid-match. Also in this pass: the session closes to
+matchmaking on start (mid-match joins were landing in running rounds), and Rigidbody damping is
+zero (it was capping speed at ~9 m/s regardless of `TopSpeed`).
+
+Built now rather than after Phase 5 on purpose: the only state to hand over today is cars and a
+few flags; every feature from here on (Crown, scores, round timer) is written migration-aware
+instead of retrofitted.
+
+**Not yet verified:** any of it — see the test plan in `Networking_Progress.md`. Also still
+unverified: the suspension/gravity change (parked car stays parked on the ramp and curve; ramp
+launch and landing feel right).
 
 ## Phase 2 — Contact system ← the actual game, next up
 
@@ -106,7 +182,12 @@ is fully closed, and manual respawn is disabled.
 
 - **Tick rate (ruling N2)** — FD-05 says the mode can't be finally tuned until it's ruled on; at
   30Hz the drift release window's wall-clock duration doubles.
+- **Round timer during a migration freeze** — pause (fair) or keep running (simpler)? And does
+  a bot keep the leaver's name? Both with design; the code currently keeps the name and has no
+  round timer yet.
 - **Steal rule** — shipping as "any contact" for first playtest. Tightening it to bump-or-above
   or slam-only makes bots materially weaker (FD-07 links the two decisions).
 - **Arena geometry** — FD-06 wants wall angles that favour scrapes over impacts; the current
   placeholder is a square box with 90° corners, which produces head-on impacts from nothing.
+- **`Assets/_Recovery/0 (1).unity`** — a Unity auto-recovery scene got committed on 2026-09-15.
+  Not referenced by anything; candidate for deletion (and `.gitignore`).

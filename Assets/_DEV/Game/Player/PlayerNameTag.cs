@@ -15,13 +15,14 @@ public class PlayerNameTag : MonoBehaviour
 
     void LateUpdate()
     {
-        if (matchState == null) return;
+        if (matchState == null || !matchState.HasState) return;
 
         // NetworkString compares against a string without allocating; ToString only on change.
         if (nameLabel != null && matchState.DisplayName != nameLabel.text)
             nameLabel.text = matchState.DisplayName.ToString();
 
-        bool ready = matchState.IsReady && matchState.IsSearching;
+        // READY is a lobby fact; it comes off the moment the match starts (CanMove releases).
+        bool ready = matchState.IsReady && matchState.IsSearching && !matchState.CanMove;
         if (readyLabel != null && ready != readyShown)
         {
             readyShown = ready;

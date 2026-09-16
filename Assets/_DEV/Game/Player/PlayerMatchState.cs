@@ -11,7 +11,7 @@ using UnityEngine;
 // One real PlayerCar per player, spawned by the host the moment that player connects (scene
 // start), seated in the lobby row, not drivable (CanMove) until a match starts.
 [RequireComponent(typeof(PlayerMovement))]
-public class PlayerMatchState : NetworkBehaviour
+public class PlayerMatchState : NetworkBehaviour, IAfterHostMigration
 {
     [Networked] public NetworkBool IsSearching { get; set; }
     [Networked] public NetworkBool IsReady { get; set; }
@@ -22,10 +22,39 @@ public class PlayerMatchState : NetworkBehaviour
     // a client is called until told.
     [Networked] public NetworkString<_32> DisplayName { get; set; }
 
+    // Who this car belongs to, as PlayerIdentity.InstallId text - the one thing about a player
+    // that survives a host migration (PlayerRefs don't). Empty means nobody: a bot-driven car.
+    [Networked] public NetworkString<_32> OwnerToken { get; set; }
+
+    // True on the host's own car. After a migration the new host uses it to find the old host's
+    // car - the one player who is guaranteed not to come back - and hand it to the bot driver
+    // right away instead of waiting the reconnect window for them.
+    [Networked] public NetworkBool WasHost { get; set; }
+
     // The tick this player's own search began (set by the host when the searching RPC lands).
     // Networked so every peer can compute every searcher's elapsed time - the shared timer is
     // the highest of them, and each peer derives it locally from this.
     [Networked] int SearchStartTick { get; set; }
+
+    // The tick the host paired this searcher with at least one other (0 = not yet). Every peer
+    // counts the same LobbyJoinCountdownSeconds down from it and InLobby flips on the same tick
+    // everywhere - which is what makes two cars appear to each other at the same moment rather
+    // than whenever each peer happened to notice.
+    [Networked] int FoundTick { get; set; }
+
+    public bool IsFound => IsSearching && FoundTick != 0;
+
+    public float LobbyJoinSecondsRemaining
+    {
+        get
+        {
+            if (!IsFound || Runner == null) return 0f;
+            int currentTick = Runner.Tick;
+            return Mathf.Max(0f, MatchmakingConfig.LobbyJoinCountdownSeconds - (currentTick - FoundTick) * Runner.DeltaTime);
+        }
+    }
+
+    public bool InLobby => IsFound && LobbyJoinSecondsRemaining <= 0f;
 
     public float SearchElapsedSeconds
     {
@@ -36,6 +65,15 @@ public class PlayerMatchState : NetworkBehaviour
             return Mathf.Clamp((currentTick - SearchStartTick) * Runner.DeltaTime, 0f, MatchmakingConfig.SearchDurationSeconds);
         }
     }
+
+    // A car with no player behind it. The host feeds it BotDriver input.
+    public bool IsBot => Object.InputAuthority == PlayerRef.None;
+
+    // Networked properties are only readable while the object is spawned. Unity-driven
+    // callbacks (LateUpdate) can run on a car whose runner has already freed its state - a host
+    // migration shuts the old runner down a frame before the GameObjects go - so anything that
+    // reads state from outside Fusion's own callbacks checks this first.
+    public bool HasState => Object != null && Object.IsValid;
 
     // Every currently-spawned instance, on every peer. Single source of truth
     // MatchmakingSessionState reads from to decide when a match should start.
@@ -48,16 +86,12 @@ public class PlayerMatchState : NetworkBehaviour
     // client. Input Authority is the per-player one, assigned by the host at Runner.Spawn time.
     public static PlayerMatchState Local;
 
+    bool wasMine;
+
     public override void Spawned()
     {
         Active.Add(this);
-
-        if (Object.HasInputAuthority)
-        {
-            Local = this;
-            RPC_SetDisplayName(PlayerIdentity.LocalDisplayName);
-        }
-
+        RefreshOwnership();
         RosterChanged?.Invoke();
     }
 
@@ -68,6 +102,36 @@ public class PlayerMatchState : NetworkBehaviour
         RosterChanged?.Invoke();
     }
 
+    // Input authority isn't fixed for life: after a host migration every car comes back
+    // ownerless and the new host hands each one to its player as they reconnect, and a leaver's
+    // car is handed to the bot driver. Fusion has no callback for that, so it's polled here -
+    // one bool compare per car per frame.
+    public override void Render()
+    {
+        if (Object.HasInputAuthority != wasMine)
+        {
+            RefreshOwnership();
+            RosterChanged?.Invoke();
+        }
+    }
+
+    void RefreshOwnership()
+    {
+        wasMine = Object.HasInputAuthority;
+
+        if (wasMine)
+        {
+            Local = this;
+            // Fresh spawn: the host doesn't know our name yet. After a migration the name is
+            // already in the copied state, and sending it again is harmless.
+            RPC_SetDisplayName(PlayerIdentity.LocalDisplayName);
+        }
+        else if (Local == this)
+        {
+            Local = null;
+        }
+    }
+
     // A client can only request its own flag change - the write itself always happens on the
     // State Authority (the host), then replicates back out to everyone automatically.
     [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
@@ -75,7 +139,11 @@ public class PlayerMatchState : NetworkBehaviour
     {
         if (searching && !IsSearching) SearchStartTick = Runner.Tick;
         IsSearching = searching;
-        if (!searching) IsReady = false;
+        if (!searching)
+        {
+            IsReady = false;
+            FoundTick = 0;
+        }
     }
 
     [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
@@ -102,5 +170,43 @@ public class PlayerMatchState : NetworkBehaviour
 
         if (searchingCount != 1) return;
         MatchmakingSessionState.Local?.TriggerStart(MatchmakingConfig.MaxPlayers - searchingCount);
+    }
+
+    // Host-only (called from MatchmakingSessionState's FixedUpdateNetwork, which is guarded on
+    // state authority). Stamps once; a player already found or already in the lobby keeps their
+    // original tick so a third joiner doesn't restart everyone's countdown.
+    public void MarkFound(int tick)
+    {
+        if (FoundTick == 0) FoundTick = tick;
+    }
+
+    // Host-only. Aborts a countdown whose partner left before it finished - the player drops
+    // back to plain searching. Someone already in the lobby stays there (alone, until the next
+    // searcher joins them).
+    public void AbortFoundCountdown()
+    {
+        if (IsFound && !InLobby) FoundTick = 0;
+    }
+
+    // Host-only. The player behind this car is gone for good - it drives itself from now on.
+    public void HandToBot()
+    {
+        OwnerToken = "";
+        WasHost = false;
+        IsReady = false;
+        if (Object.InputAuthority != PlayerRef.None) Object.RemoveInputAuthority();
+    }
+
+    // New host, right after the state was restored from the old host's snapshot. Tick counts
+    // belong to the runner that made them, and this is a new runner - so anything measured in
+    // ticks is re-based here rather than trusted. Search timers restart from zero; a player who
+    // was already found goes straight to InLobby instead of counting down again.
+    public void AfterHostMigration()
+    {
+        if (!Object.HasStateAuthority) return;
+
+        int now = Runner.Tick;
+        if (IsSearching) SearchStartTick = now;
+        if (FoundTick != 0) FoundTick = now - Mathf.CeilToInt(MatchmakingConfig.LobbyJoinCountdownSeconds * Runner.TickRate);
     }
 }

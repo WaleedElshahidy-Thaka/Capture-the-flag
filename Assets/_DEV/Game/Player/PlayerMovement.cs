@@ -61,6 +61,10 @@ public class PlayerMovement : NetworkBehaviour
     public bool IsGrounded { get; private set; }
     public float ForwardSpeed { get; private set; }
 
+    // Below this, a residual velocity component is treated as zero so a parked car is
+    // actually parked (m/s).
+    const float RestDeadband = 0.01f;
+
     Rigidbody body;
     PlayerMatchState matchState;
     ProbeResult[] probes = new ProbeResult[4];
@@ -81,6 +85,23 @@ public class PlayerMovement : NetworkBehaviour
         // prefab that still carries stale constraints can't silently reintroduce the bug.
         body.constraints = RigidbodyConstraints.None;
 
+        // The model owns gravity (GravityScale, step 5 / step 9) - PhysX must not add its own on
+        // top. With both on, gravity was applied twice, and PhysX's share pulled the frictionless
+        // chassis down any slope the model wasn't modelling, so a parked car crept downhill.
+        body.useGravity = false;
+
+        // No engine damping either. PhysX's linear damping removed a fixed fraction of velocity
+        // every step, which capped the car at ~9 m/s whatever TopSpeed said (the drag per step
+        // outgrew Acceleration's gain per step at that speed). Drag is CoastDrag / AirDrag in the
+        // model; a second, hidden drag is exactly the kind of unmodelled force doc 03 rules out.
+        body.linearDamping = 0f;
+        body.angularDamping = 0f;
+
+        // Never sleep. Velocity is authored every tick; a body PhysX has put to sleep ignores
+        // the simulation step entirely, and the write that would wake it is the one being
+        // skipped.
+        body.sleepThreshold = 0f;
+
         // Frictionless on purpose. The drive model owns grip - lateral hold is GripRate in
         // the lateral step, not a PhysicsMaterial - so any friction here would be a second,
         // unmodelled force fighting the composed velocity. Doc 03 rules out "friction materials
@@ -95,21 +116,54 @@ public class PlayerMovement : NetworkBehaviour
             collider.material = frictionless;
     }
 
-    // HasInputAuthority, not HasStateAuthority - under Host/Client the host holds State Authority
-    // over every car, so HasStateAuthority means "I am the host", not "this is my car".
-    public override void Spawned()
+    // The camera binds to whichever car is ours - HasInputAuthority, not HasStateAuthority, since
+    // under Host/Client the host holds State Authority over every car. Polled rather than done
+    // in Spawned: after a host migration our car comes back ownerless and is handed to us a
+    // moment later, and Fusion has no callback for that hand-over.
+    bool cameraBound;
+
+    public override void Render()
     {
-        if (Object.HasInputAuthority == false) return;
+        bool mine = Object.HasInputAuthority;
+        if (mine == cameraBound) return;
+        cameraBound = mine;
+        if (!mine) return;
+
+        // The camera follows the View child NetworkRigidbody interpolates, not the physics root.
+        var networkRigidbody = GetComponent<Fusion.Addons.Physics.NetworkRigidbody>();
+        Transform view = networkRigidbody != null ? networkRigidbody.InterpolationTarget : null;
 
         var cameraGO = GameObject.Find("Main Camera");
         if (cameraGO != null && cameraGO.TryGetComponent(out PlayerCamera cam))
-            cam.SetTarget(body, matchState);
+            cam.SetTarget(body, view, matchState);
     }
 
+    // Three sources of input, one pipeline:
+    //   - a player: their PlayerNetInput arrives via GetInput on the host and on their own client
+    //   - a bot (no input authority - the player left, or hasn't come back after a migration):
+    //     the host asks BotDriver; clients get the result by replication like any proxy
+    //   - CanMove not yet released: neutral input, so the car still settles onto its suspension
+    //     in the lobby instead of hanging at spawn height
+    // And one override: while the session is frozen after a host migration, every car holds
+    // still where the snapshot put it until the shared resume tick.
     public override void FixedUpdateNetwork()
     {
-        if (GetInput(out PlayerNetInput input) == false) return;
-        SimulateTick(input, Runner.DeltaTime);
+        var session = MatchmakingSessionState.Local;
+        if (session != null && session.Frozen)
+        {
+            body.linearVelocity = Vector3.zero;
+            body.angularVelocity = Vector3.zero;
+            return;
+        }
+
+        PlayerNetInput input;
+        if (GetInput(out input) == false)
+        {
+            if (!Object.HasStateAuthority || !matchState.IsBot) return;
+            input = BotDriver.Think(this);
+        }
+
+        SimulateTick(matchState.CanMove ? input : default, Runner.DeltaTime);
     }
 
     // Public and input-struct-driven on purpose. Glowtag FD-07: "A bot is an input source, not a
@@ -180,12 +234,21 @@ public class PlayerMovement : NetworkBehaviour
     {
         Vector3 local = transform.InverseTransformDirection(velocity);
 
-        // Step 5: suspension. Spring and damper per grounded probe, resolved as a vertical
-        // acceleration rather than as AddForceAtPosition - the model owns its own integration,
-        // and doc 03 treats chassis lean as visual weight at no gameplay cost, so the asymmetry
-        // between corners drives the cosmetic tilt in LateUpdate instead of real body rotation.
+        // Step 5: suspension. While grounded, gravity is carried by the suspension: a spring and
+        // damper per grounded probe hold each wheel centre at exactly wheelRadius above the
+        // ground - the height where the wheel colliders just touch - resolved as a vertical
+        // acceleration rather than AddForceAtPosition (the model owns its own integration).
+        //
+        // Preloaded on purpose, so the ride height doesn't depend on SpringStrength. An earlier
+        // version measured compression from the touching height and added gravity on top, so
+        // the spring was zero AT rest height and the chassis sank until spring balanced
+        // gravity - 39% down, wheel spheres 12cm into the floor. PhysX depenetrated them every
+        // step, the model read that push back as velocity, and the two "support systems" fought:
+        // the car crept on slopes and edges by itself, and four deep contacts resisted a spin in
+        // place. Doc 03 treats chassis lean as visual weight, so the asymmetry between corners
+        // drives the cosmetic tilt in LateUpdate instead of real body rotation.
         float suspension = GroundProbes.SuspensionResponse(probes, handling.SpringStrength, handling.DamperStrength);
-        float vertical = local.y + (suspension + Physics.gravity.y * handling.GravityScale) * dt;
+        float vertical = local.y + suspension * dt;
 
         // Step 6: longitudinal.
         float forwardSpeed = ResolveLongitudinal(input, local.z, dt);
@@ -204,6 +267,7 @@ public class PlayerMovement : NetworkBehaviour
         // any tick rate, which also matters for the still-open tick rate ruling (N2).
         float gripRate = input.Drift ? handling.DriftGripRate : handling.GripRate;
         float lateral = local.x * Mathf.Exp(-gripRate * dt);
+        if (Mathf.Abs(lateral) < RestDeadband) lateral = 0f; // exponential decay never reaches zero on its own
 
         return transform.TransformDirection(new Vector3(lateral, vertical, forwardSpeed));
     }
@@ -270,14 +334,19 @@ public class PlayerMovement : NetworkBehaviour
     // nimble and another heavy. Inertia is a plain multiplier here and is deliberately never
     // written into the Rigidbody's inertia tensor: that would hand it back to PhysX's solver and
     // re-couple it to mass, which doc 03 forbids for both determinism and authoring reasons.
+    //
+    // Yaw authority comes from speed (SpeedScalingCurve is zero at a standstill): a parked car
+    // doesn't pivot in place, and while reversing the nose swings the other way - both as a
+    // real car steers, by request.
     void ResolveSteering(PlayerNetInput input, float forwardSpeed, float dt, float authority)
     {
         float speedRatio = handling.TopSpeed > 0f ? Mathf.Abs(forwardSpeed) / handling.TopSpeed : 0f;
         float speedScale = handling.SpeedScalingCurve?.Evaluate(Mathf.Clamp01(speedRatio)) ?? 1f;
+        float travelDirection = forwardSpeed < 0f ? -1f : 1f;
 
         const float driftRotationAuthority = 1f; // neutral until Drift & Boost (doc 04) exists
 
-        float targetYawRate = input.SteerAxis * handling.MaxYawRate * speedScale * driftRotationAuthority * authority;
+        float targetYawRate = input.SteerAxis * travelDirection * handling.MaxYawRate * speedScale * driftRotationAuthority * authority;
 
         float responseTime = Mathf.Max(0.001f, handling.SteerResponse * handling.Inertia);
         float alpha = 1f - Mathf.Exp(-dt / responseTime);
@@ -286,22 +355,23 @@ public class PlayerMovement : NetworkBehaviour
 
     // Steps 5 through 8 are replaced entirely while airborne. Steering authority is reduced but
     // never zero - no state in this foundation leaves the player unable to steer.
+    // Resolved in WORLD space, unlike the grounded step: a chassis mid-air may be tilted, and
+    // its own axes mean nothing to gravity or to "horizontal".
     Vector3 ResolveAirborne(PlayerNetInput input, Vector3 velocity, float dt)
     {
-        Vector3 local = transform.InverseTransformDirection(velocity);
-
-        ResolveSteering(input, local.z, dt, authority: handling.AirSteerMultiplier);
-        ForwardSpeed = local.z;
+        float forwardSpeed = Vector3.Dot(velocity, transform.forward);
+        ResolveSteering(input, forwardSpeed, dt, authority: handling.AirSteerMultiplier);
+        ForwardSpeed = forwardSpeed;
 
         // Air drag is gentler than coast drag - a jump shouldn't cost the player their speed.
-        Vector3 horizontal = new Vector3(local.x, 0f, local.z);
+        Vector3 horizontal = new Vector3(velocity.x, 0f, velocity.z);
         float horizontalSpeed = Mathf.MoveTowards(horizontal.magnitude, 0f, handling.AirDrag * dt);
         horizontal = horizontal.sqrMagnitude > 0.0001f ? horizontal.normalized * horizontalSpeed : Vector3.zero;
 
         // Gravity is scaled above real gravity for arcade weight and a fast return to ground.
-        float vertical = local.y + Physics.gravity.y * handling.GravityScale * dt;
+        float vertical = velocity.y + Physics.gravity.y * handling.GravityScale * dt;
 
-        return transform.TransformDirection(new Vector3(horizontal.x, vertical, horizontal.z));
+        return new Vector3(horizontal.x, vertical, horizontal.z);
     }
 
     // Purely cosmetic, and deliberately so - doc 03 counts chassis lean as "visual weight, at no
@@ -310,6 +380,8 @@ public class PlayerMovement : NetworkBehaviour
     // now real per-corner data rather than an approximation.
     void LateUpdate()
     {
+        if (!matchState.HasState) return; // SteerInput is networked; see PlayerMatchState.HasState
+
         tireRollAngle += (ForwardSpeed / wheelRadius) * Mathf.Rad2Deg * Time.deltaTime;
         tireRollAngle %= 360f;
 

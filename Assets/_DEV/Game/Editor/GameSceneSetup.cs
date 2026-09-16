@@ -264,38 +264,63 @@ public static class GameSceneSetup
 
         var body = go.GetComponent<Rigidbody>();
         body.mass = 50f;
-        body.linearDamping = 1.5f;
-        body.angularDamping = 3f;
+        // No engine damping - the model owns drag (CoastDrag / AirDrag). PhysX damping capped
+        // the car at ~9 m/s regardless of TopSpeed; see PlayerMovement.Awake.
+        body.linearDamping = 0f;
+        body.angularDamping = 0f;
         // No rotation constraints. PlayerMovement.ResolveAttitude actively levels the chassis
         // (writes X/Z angular velocity every tick to conform to slopes and come back upright) -
         // freezing X/Z here made PhysX cancel that every step, which was the rotation jitter
         // seen in the inspector, and stopped the car conforming to the ramp and banked curve.
         body.constraints = RigidbodyConstraints.None;
+        // The drive model applies gravity itself (HandlingValues.GravityScale) - PhysX adding its
+        // own was a second, unmodelled force that slid the frictionless chassis down slopes.
+        body.useGravity = false;
         // None, not Interpolate: physics is stepped from Fusion's tick (RunnerSimulatePhysics),
-        // not Unity's FixedUpdate, and NetworkTransform already interpolates the transform for
-        // rendering. Rigidbody interpolation on top was a second writer fighting it each frame.
+        // not Unity's FixedUpdate, and NetworkRigidbody interpolates the View child for
+        // rendering. Rigidbody interpolation on top would be a second writer fighting it.
         body.interpolation = RigidbodyInterpolation.None;
 
         if (go.GetComponent<PlayerMovement>() == null) Undo.AddComponent<PlayerMovement>(go);
         if (go.GetComponent<PlayerMatchState>() == null) Undo.AddComponent<PlayerMatchState>(go);
         if (go.GetComponent<NetworkObject>() == null) Undo.AddComponent<NetworkObject>(go);
 
-        var networkTransform = go.GetComponent<NetworkTransform>();
-        if (networkTransform == null) networkTransform = Undo.AddComponent<NetworkTransform>(go);
-        // Forecast Physics (extrapolates from the Rigidbody's velocity instead of resimulating)
-        // - see Documentation/Networking_Progress.md. Requires
-        // NetworkProjectConfig.PhysicsForecast enabled globally too.
-        networkTransform.PhysicsSettings.ForecastEnabled = true;
+        // NetworkRigidbody (Fusion Physics addon), not NetworkTransform. NetworkTransform only
+        // knows the transform: on a rollback it teleported the chassis but left PhysX holding
+        // the *predicted* velocity, so every resimulation ran from a mismatched state and the
+        // client's car snapped between where it predicted and where the host said. Its render
+        // interpolation also wrote the root transform every frame, which Unity pushes into
+        // PhysX - the small wobble seen on the host. NetworkRigidbody networks position,
+        // rotation AND velocity, restores all of them before a resimulation (doc 03's
+        // "restore then re-simulate" contract), and interpolates a render-only child instead
+        // of the physics root.
+        var legacyTransform = go.GetComponent<NetworkTransform>();
+        if (legacyTransform != null) UnityEngine.Object.DestroyImmediate(legacyTransform);
+        var networkRigidbody = go.GetComponent<Fusion.Addons.Physics.NetworkRigidbody>();
+        if (networkRigidbody == null) networkRigidbody = Undo.AddComponent<Fusion.Addons.Physics.NetworkRigidbody>(go);
 
+        // View: the interpolation target. Everything cosmetic lives under it (the robot art, the
+        // name tag); the colliders stay on the root with the Rigidbody. NetworkRigidbody moves
+        // this child between ticks for rendering and recentres it before each simulation step.
+        var existingView = go.transform.Find("View");
+        if (existingView != null) UnityEngine.Object.DestroyImmediate(existingView.gameObject);
         var existingVisual = go.transform.Find("Visual");
         if (existingVisual != null) UnityEngine.Object.DestroyImmediate(existingVisual.gameObject);
+        var existingTag = go.transform.Find("NameTag");
+        if (existingTag != null) UnityEngine.Object.DestroyImmediate(existingTag.gameObject);
+
+        var view = new GameObject("View");
+        view.transform.SetParent(go.transform, false);
+        var nrbSo = new SerializedObject(networkRigidbody);
+        nrbSo.FindProperty("_interpolationTarget").objectReferenceValue = view.transform;
+        nrbSo.ApplyModifiedProperties();
 
         var playerArt = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/_DEV/Game/Art/Bolt/PlayerRobot.prefab");
         GameObject visual = playerArt != null
             ? (GameObject)PrefabUtility.InstantiatePrefab(playerArt)
             : GameObject.CreatePrimitive(PrimitiveType.Capsule);
         visual.name = "Visual";
-        visual.transform.SetParent(go.transform, false);
+        visual.transform.SetParent(view.transform, false);
         visual.transform.localPosition = playerArt != null ? Vector3.zero : new Vector3(0f, 0.4f, 0f);
         visual.transform.localRotation = Quaternion.identity;
 
@@ -304,7 +329,7 @@ public static class GameSceneSetup
 
         WireTires(go, visual);
         BuildColliders(go, visual);
-        var nameTag = BuildNameTag(go);
+        var nameTag = BuildNameTag(go, view.transform);
         WireLobbyVisibility(go, visual, nameTag);
 
         PrefabUtility.SaveAsPrefabAsset(go, PlayerCarPrefabPath);
@@ -327,15 +352,13 @@ public static class GameSceneSetup
     }
 
     // A small world-space canvas above the chassis showing the player's name (PlayerNameTag reads
-    // PlayerMatchState.DisplayName and billboards it). Under the car root, not under Visual, so
-    // the cosmetic body lean doesn't tilt the text.
-    static GameObject BuildNameTag(GameObject car)
+    // PlayerMatchState.DisplayName and billboards it). Under View (so it follows the
+    // interpolated car, not the tick-stepped physics root), but a sibling of Visual, so the
+    // cosmetic body lean doesn't tilt the text.
+    static GameObject BuildNameTag(GameObject car, Transform view)
     {
-        var existing = car.transform.Find("NameTag");
-        if (existing != null) UnityEngine.Object.DestroyImmediate(existing.gameObject);
-
         var tagGO = new GameObject("NameTag", typeof(RectTransform), typeof(Canvas), typeof(PlayerNameTag));
-        tagGO.transform.SetParent(car.transform, false);
+        tagGO.transform.SetParent(view, false);
         tagGO.transform.localPosition = new Vector3(0f, 1.6f, 0f);
         tagGO.transform.localScale = Vector3.one * 0.01f;
 
@@ -498,14 +521,15 @@ public static class GameSceneSetup
 
     class ScreenRefs
     {
-        public GameObject loadingPanel, idlePanel, searchingPanel, soloBotPanel, readyPanel, startingPanel;
+        public GameObject loadingPanel, idlePanel, searchingPanel, foundPanel, soloBotPanel, readyPanel, reconnectingPanel, resumingPanel;
         public Button quickMatchButton, startWithBotsButton, readyToggleButton, cancelButton;
-        public TMP_Text loadingText, searchingText, playersFoundText, readyToggleLabel;
+        public TMP_Text loadingText, searchingText, playersFoundText, foundText, readyToggleLabel, resumingText;
     }
 
     // A full-screen black Loading panel, then compact translucent side panels down the left
     // edge - never an overlay over the arena, so the robots stay in view. Each phase's panel is
-    // its own small box; Cancel sits in a separate box below them.
+    // its own small box; Cancel sits in a separate box below them. Two more full-screen panels
+    // (translucent, the arena still visible behind) cover a host migration.
     static void BuildScreen(RectTransform canvas, out ScreenRefs refs)
     {
         refs = new ScreenRefs();
@@ -514,16 +538,7 @@ public static class GameSceneSetup
         Stretch(root);
         RemoveLegacyChildren(root);
 
-        var loading = GetOrCreateUI("LoadingPanel", root, typeof(Image));
-        Stretch(loading);
-        loading.GetComponent<Image>().color = Color.black;
-        refs.loadingText = TextEl("LoadingText", loading, "Loading... 0s", 28, 48);
-        var loadingTextRt = refs.loadingText.rectTransform;
-        loadingTextRt.anchorMin = new Vector2(0.5f, 0.5f);
-        loadingTextRt.anchorMax = new Vector2(0.5f, 0.5f);
-        loadingTextRt.pivot = new Vector2(0.5f, 0.5f);
-        loadingTextRt.sizeDelta = new Vector2(600f, 48f);
-        loadingTextRt.anchoredPosition = Vector2.zero;
+        var loading = FullScreenPanel("LoadingPanel", root, Color.black, "Loading... 0s", out refs.loadingText);
         refs.loadingPanel = loading.gameObject;
 
         var idle = SidePanel("IdlePanel", root);
@@ -542,17 +557,42 @@ public static class GameSceneSetup
         refs.readyPanel = ready.gameObject;
         refs.searchingPanel = searching.gameObject;
 
-        var starting = SidePanel("StartingPanel", root);
-        TextEl("StartingText", starting, "Starting...", 26, 40);
-        refs.startingPanel = starting.gameObject;
+        var found = SidePanel("FoundPanel", root);
+        refs.foundText = TextEl("FoundText", found, "Player found! Joining lobby in 3", 22, 36);
+        refs.foundPanel = found.gameObject;
 
         // Cancel lives at the root, anchored below the phase panels.
         var cancelBox = SidePanel("CancelPanel", root, anchoredY: -120f);
         refs.cancelButton = Btn("CancelButton", cancelBox, "Cancel", 40);
         cancelBox.GetComponent<Image>().enabled = false;
 
-        // Loading must draw over everything else.
+        // Host migration overlays: dimmed, not black - the frozen cars stay in view behind them.
+        var dim = new Color(0f, 0f, 0f, 0.6f);
+        var reconnecting = FullScreenPanel("ReconnectingPanel", root, dim, "Host disconnected - reconnecting...", out _);
+        refs.reconnectingPanel = reconnecting.gameObject;
+        var resuming = FullScreenPanel("ResumingPanel", root, dim, "Game resumes in 3", out refs.resumingText);
+        refs.resumingPanel = resuming.gameObject;
+
+        // The full-screen panels draw over the side panels; Loading over everything.
+        reconnecting.SetAsLastSibling();
+        resuming.SetAsLastSibling();
         loading.SetAsLastSibling();
+    }
+
+    static RectTransform FullScreenPanel(string name, Transform parent, Color color, string text, out TMP_Text label)
+    {
+        var panel = GetOrCreateUI(name, parent, typeof(Image));
+        Stretch(panel);
+        panel.GetComponent<Image>().color = color;
+
+        label = TextEl("Text", panel, text, 28, 48);
+        var rt = label.rectTransform;
+        rt.anchorMin = new Vector2(0.5f, 0.5f);
+        rt.anchorMax = new Vector2(0.5f, 0.5f);
+        rt.pivot = new Vector2(0.5f, 0.5f);
+        rt.sizeDelta = new Vector2(700f, 48f);
+        rt.anchoredPosition = Vector2.zero;
+        return panel;
     }
 
     // Objects from earlier UI layouts that would otherwise survive re-runs as dead objects
@@ -565,7 +605,7 @@ public static class GameSceneSetup
             if (content != null) UnityEngine.Object.DestroyImmediate(content.gameObject);
         }
 
-        foreach (var path in new[] { "SearchingPanel/CancelButton", "IdlePanel/LoadingText", "IdlePanel/FindMatchButton", "FoundPanel", "LobbyPanel" })
+        foreach (var path in new[] { "SearchingPanel/CancelButton", "IdlePanel/LoadingText", "IdlePanel/FindMatchButton", "LobbyPanel", "StartingPanel", "LoadingPanel/LoadingText" })
         {
             var legacy = root.Find(path);
             if (legacy != null) UnityEngine.Object.DestroyImmediate(legacy.gameObject);
@@ -584,13 +624,17 @@ public static class GameSceneSetup
         SetField(screen, "searchingPanel", refs.searchingPanel);
         SetField(screen, "searchingText", refs.searchingText);
         SetField(screen, "playersFoundText", refs.playersFoundText);
+        SetField(screen, "foundPanel", refs.foundPanel);
+        SetField(screen, "foundText", refs.foundText);
         SetField(screen, "soloBotPanel", refs.soloBotPanel);
         SetField(screen, "startWithBotsButton", refs.startWithBotsButton);
         SetField(screen, "readyPanel", refs.readyPanel);
         SetField(screen, "readyToggleButton", refs.readyToggleButton);
         SetField(screen, "readyToggleLabel", refs.readyToggleLabel);
-        SetField(screen, "startingPanel", refs.startingPanel);
         SetField(screen, "cancelButton", refs.cancelButton);
+        SetField(screen, "reconnectingPanel", refs.reconnectingPanel);
+        SetField(screen, "resumingPanel", refs.resumingPanel);
+        SetField(screen, "resumingText", refs.resumingText);
     }
 
     // ─── Low-level UI builders ───────────────────────────────────────────

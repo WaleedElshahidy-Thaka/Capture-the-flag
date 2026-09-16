@@ -45,22 +45,27 @@ public class FusionActiveQuickMatchSession : IActiveQuickMatchSession
 
     public bool IsLocalPlayerSpawned => ownState != null;
 
-    public int SearchingCount
+    public bool IsSearching => ownState != null && ownState.IsSearching;
+    public void SetSearching(bool searching) => ownState?.RPC_SetSearching(searching);
+
+    public float LobbyJoinSecondsRemaining => ownState != null ? ownState.LobbyJoinSecondsRemaining : 0f;
+    public bool InLobby => ownState != null && ownState.InLobby;
+
+    public int LobbyCount
     {
         get
         {
             int count = 0;
             var players = PlayerMatchState.Active;
             for (int i = 0; i < players.Count; i++)
-                if (players[i].IsSearching) count++;
+                if (players[i].InLobby) count++;
             return count;
         }
     }
 
-    public bool IsSearching => ownState != null && ownState.IsSearching;
-    public void SetSearching(bool searching) => ownState?.RPC_SetSearching(searching);
-
-    public float ElapsedSeconds => MatchmakingSessionState.SharedElapsedSeconds();
+    public float ElapsedSeconds => InLobby
+        ? MatchmakingSessionState.SharedElapsedSeconds()
+        : ownState != null ? ownState.SearchElapsedSeconds : 0f;
     public bool BotOptionUnlocked => IsSearching && ElapsedSeconds >= MatchmakingConfig.BotOptionUnlockSeconds;
 
     public bool IsReady => ownState != null && ownState.IsReady;
@@ -71,11 +76,22 @@ public class FusionActiveQuickMatchSession : IActiveQuickMatchSession
     public bool MatchStarting => SessionState != null && SessionState.MatchStarting;
     public int BotCount => SessionState != null ? SessionState.BotCount : 0;
 
+    public bool IsFrozen => SessionState != null && SessionState.Frozen;
+    public float ResumeSecondsRemaining => SessionState != null ? SessionState.ResumeSecondsRemaining : 0f;
+
     public event Action Changed;
 
     public void Leave()
     {
-        PlayerMatchState.RosterChanged -= OnRosterChanged;
+        Detach();
         if (runner != null && runner.IsRunning) _ = runner.Shutdown();
+    }
+
+    // The runner is going away without us asking (host migration): stop listening, don't shut
+    // anything down - the service is already doing that.
+    public void Detach()
+    {
+        PlayerMatchState.RosterChanged -= OnRosterChanged;
+        ownState = null;
     }
 }

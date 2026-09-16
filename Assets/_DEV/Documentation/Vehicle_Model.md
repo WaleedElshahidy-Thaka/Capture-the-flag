@@ -31,7 +31,9 @@ The current model is the first one built to the doc rather than guessed.
 ## Current state — Phase 1 (M1, M2, M4)
 
 **`GroundProbes.cs`** — four raycasts, grounded requires 2+ in contact, spring/damper response
-averaged across grounded probes. Probe origins are **baked from the art** at prefab build time
+averaged across grounded probes. Compression is **signed around the rest height** (the measured
+wheel radius): the spring pulls a hanging wheel down toward rest as well as pushing a compressed
+one up. Probe origins are **baked from the art** at prefab build time
 (`GameSceneSetup.WireTires` measures the tire local positions and the wheel renderer's radius),
 not read live from the tire transforms — those get rotated every frame by the cosmetic steer
 animation, which would make the probe origins wobble.
@@ -43,8 +45,11 @@ wrapper around this type, not a rewrite of everything that reads it.
 **`PlayerMovement.cs`** — doc 03's fixed step order: probe → suspension → longitudinal →
 steering → lateral → write velocity. Target-speed-and-approach-rate longitudinal with the
 no-clamp overspeed rule. Steering sets a *target yaw rate* approached through
-`steer_response × inertia`. Lateral grip as fraction-removed-per-tick. Chassis is
-**frictionless** — the model owns grip, so a PhysicsMaterial would be a second unmodelled force.
+`steer_response × inertia`, scaled by `SpeedScalingCurve` — **zero at a standstill** (no
+pivoting in place; steering needs motion, like a real car — owner's call on 2026-09-16), full by
+20% of top speed, eased back at the top; the yaw sign flips while reversing so the nose swings
+the way a reversing car's does. Chassis is **frictionless** — the model owns grip, so a
+PhysicsMaterial would be a second unmodelled force.
 
 `SimulateTick(input, deltaTime)` is public and input-struct-driven because Glowtag FD-07 requires
 bots to be an input source feeding this same pipeline, and bots have no `PlayerRef` to arrive via
@@ -58,9 +63,14 @@ which matters for the still-open N2 ruling. Doc 04's real drift state machine (h
 release window, boost) is still Phase 6; `DriftGripRate` is only the grip half of it.
 
 **Physics is stepped by Fusion**, once per tick, via the `RunnerSimulatePhysics` addon on the
-runner (see `Networking_Progress.md`). The Rigidbody has **no rotation constraints** — an earlier
-prefab build still froze X/Z, which made PhysX cancel `ResolveAttitude`'s levelling every step
-(the rotation jitter seen in the inspector) and stopped the chassis conforming to the ramp.
+runner, and the body's state is networked by the addon's `NetworkRigidbody` (see
+`Networking_Progress.md`, "Physics replication"). That second part closes a gap in the
+determinism contract: the model reads `body.linearVelocity` back every tick, so velocity *is*
+accumulating state, and only `NetworkRigidbody` restores it before a resimulation —
+`NetworkTransform` restored position alone, which is where the client-side flicker came from.
+The Rigidbody has **no rotation constraints** — an earlier prefab build still froze X/Z, which
+made PhysX cancel `ResolveAttitude`'s levelling every step (the rotation jitter seen in the
+inspector) and stopped the chassis conforming to the ramp.
 
 ## Attitude: levelled, not frozen
 
@@ -92,8 +102,35 @@ mesh colliders (non-convex meshes on a moving Rigidbody are unreliable in PhysX)
   wheels rather than a box edge.
 
 Suspension rest height is set to the measured wheel radius, so the probes hold the chassis at
-exactly the height the wheel spheres would touch — the two support systems agree instead of
+exactly the height the wheel spheres just touch — the two support systems agree instead of
 fighting for the same contact.
+
+**That only holds because the spring is preloaded.** While grounded, gravity is carried by the
+suspension: the model applies no gravity, and the spring/damper hold each wheel centre at rest
+height with zero displacement. The first version measured compression from the touching height
+*and* added gravity, so the spring was zero at rest height and the chassis sank until spring
+balanced gravity — 39% down, wheel spheres 12 cm into the floor. PhysX depenetrated them every
+step, the model read that push back as velocity, and the two support systems fought: a parked
+car crept on slopes and edges, and four deep contacts resisted a spin in place. `SpringStrength`
+now changes only how bouncy the ride is, never where it sits.
+
+**Drag is the model's alone too.** Rigidbody linear and angular damping are zero. Linear
+damping at 1.5 removed 2.3% of velocity every step, which outgrew `Acceleration`'s gain per step
+at about 9 m/s — the car never reached `TopSpeed` and raising it changed nothing except making
+the steer curve think the car was crawling. Expect `Acceleration` and `CoastDrag` to want
+retuning now that they're the only longitudinal forces.
+
+**Gravity is the model's alone.** `Rigidbody.useGravity` is off (set in code and in the prefab
+builder). With it on, gravity was applied twice, and PhysX's share pulled the frictionless
+chassis down any slope — the model has no slope term until M3, so from its side a parked car on
+a ramp should stay parked. Airborne, gravity and air drag resolve in **world** space; the
+chassis's own axes mean nothing to gravity mid-air. The Rigidbody's sleep threshold is zero:
+velocity is authored every tick, and a sleeping body ignores the step.
+
+**`CanMove` gate.** The Phase 1 rewrite dropped `PlayerMatchState.CanMove` from
+`FixedUpdateNetwork` — cars were drivable in the lobby. Restored on 2026-09-16, as *neutral
+input* rather than an early return, so the chassis still settles onto its suspension while
+parked.
 
 ## Not built yet
 
@@ -126,5 +163,7 @@ be resolved on paper. Fix top speed, build one arena against it, tune the arena.
 `ArenaBounds.CrossingSeconds` reports where that currently stands against FD-06's 4–6 second
 target.
 
-First value likely to want attention: `LateralGrip` at 0.86 (fraction of sideways velocity
-removed per tick's worth of time).
+Grip is now `GripRate` (20/s) and `DriftGripRate` (3/s) — the earlier `LateralGrip = 0.86`
+fraction-per-tick was a rail and has been replaced, see above. First values likely to want
+attention now: `GripRate` against how much the drift button should open the slide, and
+`GroundedLevelStrength` against how much the chassis should visibly bank into the curve.

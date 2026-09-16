@@ -19,6 +19,11 @@ public class QuickMatchLocalService : IQuickMatchService
         // Nothing to tear down - no runner, no connection.
     }
 
+    // No host to lose. Explicit no-op accessors rather than unused-event warnings.
+    public event Action HostLost { add { } remove { } }
+    public event Action<IActiveQuickMatchSession> SessionRestored { add { } remove { } }
+    public event Action<string> SessionFailed { add { } remove { } }
+
     class LocalActiveQuickMatchSession : IActiveQuickMatchSession
     {
         float searchStartRealtime;
@@ -30,8 +35,10 @@ public class QuickMatchLocalService : IQuickMatchService
         public bool IsHost => true;
         public bool IsLocalPlayerSpawned => true;
 
-        public int SearchingCount => IsSearching ? 1 : 0;
         public bool IsSearching { get; private set; }
+        public float LobbyJoinSecondsRemaining => 0f; // nobody to be found
+        public bool InLobby => false;
+        public int LobbyCount => 0;
         public void SetSearching(bool searching)
         {
             if (searching && !IsSearching) searchStartRealtime = Time.realtimeSinceStartup;
@@ -44,6 +51,9 @@ public class QuickMatchLocalService : IQuickMatchService
             ? Mathf.Min(Time.realtimeSinceStartup - searchStartRealtime, MatchmakingConfig.SearchDurationSeconds)
             : 0f;
         public bool BotOptionUnlocked => IsSearching && ElapsedSeconds >= MatchmakingConfig.BotOptionUnlockSeconds;
+
+        public bool IsFrozen => false;
+        public float ResumeSecondsRemaining => 0f;
 
         public bool IsReady { get; private set; }
         public void SetReady(bool ready)

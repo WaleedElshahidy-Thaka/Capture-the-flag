@@ -2,8 +2,9 @@ using Fusion;
 using UnityEngine;
 
 // Who you can see, and when. Your own car is always visible. Another player's car appears
-// only once you are both searching - that's the moment "a player was found" - or once the
-// match is starting. Anyone just sitting in the arena, not searching, stays hidden.
+// only once you are both in the lobby - after the "Player found! Joining lobby in 3" countdown
+// both of you counted from the same host-stamped tick - or once the match is starting. Anyone
+// just sitting in the arena, or still counting down, stays hidden.
 //
 // Only the cosmetic children are toggled (Visual, NameTag) - the NetworkObject, colliders and
 // simulation keep running underneath, so nothing about replication changes. Toggles only on a
@@ -26,12 +27,14 @@ public class PlayerLobbyVisibility : MonoBehaviour
 
     void LateUpdate()
     {
+        if (!state.HasState) return;
+
         var session = MatchmakingSessionState.Local;
         var own = PlayerMatchState.Local;
 
         bool shouldShow = networkObject.HasInputAuthority
                           || (session != null && session.MatchStarting)
-                          || (own != null && own.IsSearching && state.IsSearching);
+                          || (own != null && own.InLobby && state.InLobby);
 
         if (shouldShow == visible) return;
         visible = shouldShow;

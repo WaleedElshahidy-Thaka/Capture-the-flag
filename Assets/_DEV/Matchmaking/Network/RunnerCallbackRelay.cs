@@ -21,6 +21,7 @@ public class RunnerCallbackRelay : INetworkRunnerCallbacks
     public Action<NetworkRunner, NetConnectFailedReason> OnConnectFailedAction;
     public Action<NetworkRunner, NetworkInput> OnInputAction;
     public Action<NetworkRunner> OnSceneLoadDoneAction;
+    public Action<NetworkRunner, HostMigrationToken> OnHostMigrationAction;
 
     public void OnSessionListUpdated(NetworkRunner runner, List<SessionInfo> sessionList) => OnSessionListUpdatedAction?.Invoke(runner, sessionList);
     public void OnPlayerJoined(NetworkRunner runner, PlayerRef player) => OnPlayerJoinedAction?.Invoke(runner, player);
@@ -35,7 +36,7 @@ public class RunnerCallbackRelay : INetworkRunnerCallbacks
     public void OnConnectRequest(NetworkRunner runner, NetworkRunnerCallbackArgs.ConnectRequest request, byte[] token) { }
     public void OnUserSimulationMessage(NetworkRunner runner, SimulationMessagePtr message) { }
     public void OnCustomAuthenticationResponse(NetworkRunner runner, Dictionary<string, object> data) { }
-    public void OnHostMigration(NetworkRunner runner, HostMigrationToken hostMigrationToken) { }
+    public void OnHostMigration(NetworkRunner runner, HostMigrationToken hostMigrationToken) => OnHostMigrationAction?.Invoke(runner, hostMigrationToken);
     public void OnReliableDataReceived(NetworkRunner runner, PlayerRef player, ReliableKey key, ReadOnlySpan<byte> data) { }
     public void OnReliableDataProgress(NetworkRunner runner, PlayerRef player, ReliableKey key, float progress) { }
     public void OnSceneLoadDone(NetworkRunner runner) => OnSceneLoadDoneAction?.Invoke(runner);

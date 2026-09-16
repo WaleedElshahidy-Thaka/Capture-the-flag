@@ -32,8 +32,11 @@ public class HandlingValues
     [Header("Steering")]
     public float MaxYawRate = 110f;           // deg/s, turning authority at reference speed
     public float SteerResponse = 0.18f;       // s, base time to reach target yaw rate
-    [Tooltip("Yaw authority against speed ratio. Cuts twitchiness at top speed and pivoting in place at a standstill.")]
-    public AnimationCurve SpeedScalingCurve = AnimationCurve.Linear(0f, 0.6f, 1f, 1f);
+    [Tooltip("Yaw authority against speed ratio (|forward speed| / TopSpeed). Zero at a standstill - the car can't pivot in place, steering needs motion like a real car - full by 20% of top speed, eased back a little at the top to cut twitchiness.")]
+    public AnimationCurve SpeedScalingCurve = new AnimationCurve(
+        new Keyframe(0f, 0f, 0f, 5f),
+        new Keyframe(0.2f, 1f, 5f, -0.1875f),
+        new Keyframe(1f, 0.85f, -0.1875f, 0f));
 
     [Header("Lateral")]
     [Tooltip("How fast sideways velocity is scrubbed off, per second. Sideways speed decays as exp(-rate * dt), so it's independent of tick rate. ~20 means 90% gone in about 0.12s: goes where it points, with a small slide on hard corners.")]
@@ -42,14 +45,17 @@ public class HandlingValues
     public float DriftGripRate = 3f;
 
     [Header("Airborne")]
-    public float GravityScale = 2.2f;         // above real gravity, for arcade weight
+    [Tooltip("Multiplier on real gravity while airborne (the suspension carries the chassis while grounded). Above 1 for arcade weight and a fast return to ground.")]
+    public float GravityScale = 2.2f;
     public float AirSteerMultiplier = 0.4f;   // never 0 - doc 03 Design Goal 6
     public float AirDrag = 1.5f;              // m/s², gentler than coast drag
 
     [Header("Suspension (ride height - doc 03 marks these visual, tune late)")]
-    [Tooltip("How far past the wheel's resting contact the probe keeps looking. Rest height itself comes from the measured wheel radius, so the suspension holds the car exactly where its wheel colliders would touch.")]
+    [Tooltip("How far past the wheel's resting contact the probe keeps looking. Rest height itself comes from the measured wheel radius, so the suspension holds the car exactly where its wheel colliders just touch.")]
     public float SuspensionTravel = 0.45f;
+    [Tooltip("Stiffness of the hold around rest height (m/s² per rest-length of displacement). Changes how bouncy the ride is, never where it sits - the spring is preloaded, gravity is carried at zero displacement.")]
     public float SpringStrength = 55f;
+    [Tooltip("Damping of that hold (per second of vertical speed). Higher settles faster; too low bounces after landings and bumps.")]
     public float DamperStrength = 6f;
 
     [Header("Attitude")]
