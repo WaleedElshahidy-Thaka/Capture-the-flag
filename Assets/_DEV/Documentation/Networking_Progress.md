@@ -39,6 +39,56 @@ round. Late join and rejoin are not supported — the session closes on StartMat
 | Despawn on leave | Host only |
 | Client → host requests | `[Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]`. Routes correctly and needed no change across the topology switch |
 
+## Matchmaking flow (as of 2026-09-15)
+
+This is the owner-specified flow; treat it as the spec.
+
+```
+open the game → Loading (black) — auto-connect, host spawns & seats your car
+→ Idle: arena, your robot, [Quick Match]. Nothing happens until pressed.
+→ Searching: "Searching for players… Ns" from 0, Cancel available
+   ├─ nobody: at 30 s → WaitingSolo: [Start with computer players] → starts immediately
+   └─ 2+ searching: you see each other + names; timer becomes SHARED = the highest one
+        at 30 s shared → WaitingReady: [Play with computer players] marks you READY
+        (tag above your robot, button → [Unready]); all searching players ready → start
+        with bots; otherwise the timer keeps counting and searching continues.
+   6 searching → immediate start, no bots.
+```
+
+Mechanics: connection is automatic on scene start (`MatchmakingFlowController.Start`), the
+loading screen stays until `IsLocalPlayerSpawned`. Quick Match sends `RPC_SetSearching(true)`;
+the host stamps `SearchStartTick`, so every peer can compute every searcher's elapsed time
+and the shared timer is simply the highest (`MatchmakingSessionState.SharedElapsedSeconds`).
+Cancel is `RPC_SetSearching(false)` — you stay connected and seated. The host decides the
+start in `MatchmakingSessionState.FixedUpdateNetwork`; the solo start goes through
+`RPC_RequestStartWithBots`. Values live in `MatchmakingConfig`.
+
+**Visibility:** your own car is always visible; another player's car appears only once you are
+*both* searching (`PlayerLobbyVisibility` toggles `Visual`/`NameTag`). Someone sitting in the
+arena without searching is not shown to searchers, and vice versa.
+
+Display names: `PlayerMatchState.DisplayName` (`NetworkString<_32>`), sent by the owning client
+via RPC right after spawn from `PlayerIdentity.LocalDisplayName` (OS user name until the
+launcher's account identity is wired in). Rendered by `PlayerNameTag`, a world-space canvas
+child of `PlayerCar.prefab`.
+
+Lobby layout and camera: `LobbyLayout` is the single source for both. Seats are a staggered row
+(slot *i* at X = i·spacing, Z alternating 0 / stagger), cars facing the camera, and one fixed
+isometric camera at the row's centre X — the same picture on every peer, shown from the first
+frame with no target needed. `PlayerLobbySpawner` seats by `PlayerId`, `PlayerCamera` parks on
+it in the lobby and switches to the third-person follow when `PlayerMatchState.CanMove` is
+released — no explicit call.
+
+## Physics stepping
+
+`RunnerSimulatePhysics` (Fusion Physics addon) is attached to the runner in
+`QuickMatchFusionService`, so PhysX steps once per Fusion tick instead of on Unity's own 50 Hz
+FixedUpdate. Before this, the drive model wrote velocity at 60 Hz against a 50 Hz integrator —
+some writes integrated twice, some never — which was a visible jitter source and broke doc 03's
+"same input, same tick, same result" premise. `PlayerMovement` carries
+`[DefaultExecutionOrder(-50)]` so its velocity write lands before the step in the same tick.
+Rigidbody interpolation is off (NetworkTransform interpolates for rendering).
+
 ## Replicated simulation state
 
 Anything that accumulates across ticks must be networked and restorable, per doc 03's
@@ -67,9 +117,14 @@ PhysX-driven vehicle physics on determinism grounds regardless of topology.
 4. Matchmaking merged into one scene; connect-on-start with Find Match as a searching flag;
    shared lobby search timer; remote wheel-steer replication.
 
-**Untested since:** the Host/Client switch itself, and everything in Phase 1. Next real test
-should confirm both cars spawn under the host, both drive, the timer is synced, and the match
-starts for both.
+5. Host/Client with two real peers (2026-09-14 test report): both cars spawn under the host,
+   both drive, the match starts for both.
+
+**Untested since (2026-09-15 changes):** the found-countdown/lobby flow, name tags, lobby
+camera, the physics-stepping switch, and the grip-rate change. Next two-peer test should
+confirm: P2's timer starts at 0 → "Player found" on both after P2 reaches 5 s → lobby with both
+names above the cars and a Ready button → Ready on both starts the match; no rotation jitter in
+the inspector; Ctrl+steer visibly slides.
 
 ## Open
 

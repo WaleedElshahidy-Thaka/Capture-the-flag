@@ -1,5 +1,5 @@
-// Single named source of truth for the values this milestone's Find Match flow tunes on —
-// nothing here should ever be hardcoded again at a second call site.
+// Single named source of truth for the values the Quick Match flow tunes on — nothing here
+// should ever be hardcoded again at a second call site.
 public static class MatchmakingConfig
 {
     // Six, per Glowtag FD-07: the lobby fills every empty slot with a bot, so a match always has
@@ -7,13 +7,14 @@ public static class MatchmakingConfig
     // longer occur. FD-06 requires six start anchors to match.
     public const int MaxPlayers = 6;
 
-    // The displayed search timer's hard ceiling - counts UP from 0 to this. Purely a display
-    // cap / TickTimer duration, separate from when the bot-fill option actually unlocks.
+    // Display ceiling of the search timer. Each player's timer starts at 0 on their own Quick
+    // Match press; once two or more are searching together the shown timer is the highest of
+    // theirs (the shared timer).
     public const float SearchDurationSeconds = 120f;
 
-    // The bot-fill option (solo "start with computer players" button, or the per-player ready
-    // toggle for 2-3 real players) becomes available once this many seconds have elapsed -
-    // well before the timer's 120s display cap.
+    // The bot option unlocks once the (shared) timer reaches this. Solo: "start with computer
+    // players" starts immediately. With 2+ players: it becomes a ready toggle, and the match
+    // starts with bots once every searching player is ready.
     public const float BotOptionUnlockSeconds = 30f;
 
     // Stamped into SessionProperties so this game's sessions can eventually be told apart

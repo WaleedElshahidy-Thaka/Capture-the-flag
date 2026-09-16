@@ -51,10 +51,20 @@ public class QuickMatchFusionService : IQuickMatchService
             yield break;
         }
 
-        var runnerGO = new GameObject($"NetworkRunner-QuickMatch-{RoomCodeGenerator.Generate()}"); // debug label only, never displayed, never passed as SessionName
+        var runnerGO = new GameObject("NetworkRunner-QuickMatch");
         var runner = runnerGO.AddComponent<NetworkRunner>();
         runner.ProvideInput = true; // required for OnInputAction below to ever fire
         connectingRunner = runner;
+
+        // Fusion steps PhysX itself, once per network tick, instead of Unity stepping it on its
+        // own 50Hz FixedUpdate while the drive model writes velocity at Fusion's 60Hz. Without
+        // this the two cadences drift against each other - some ticks' velocity writes are
+        // integrated twice, some never - which shows up as rotation/position jitter and breaks
+        // the "same input, same tick, same result" premise the drive model is built on (doc 03).
+        // A SimulationBehaviour on the runner's own GameObject is picked up automatically.
+        var physics = runnerGO.AddComponent<Fusion.Addons.Physics.RunnerSimulatePhysics>();
+        physics.Update3DPhysicsScene = true;
+        physics.Update2DPhysicsScene = false;
 
         runner.AddCallbacks(new RunnerCallbackRelay
         {

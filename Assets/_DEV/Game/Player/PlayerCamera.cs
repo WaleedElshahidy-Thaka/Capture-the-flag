@@ -1,14 +1,23 @@
 using UnityEngine;
 
-// Local-only, not networked. Follows velocity direction rather than the car's facing (keeps
-// the view stable through turns instead of swinging with the nose), with reversing
-// unconditionally excluded from that so the camera never swings in front of the car while
-// backing up. Reads the target's real Rigidbody directly - no separate synced/visual object,
-// same object PlayerMovement drives.
+// Local-only, not networked. Two views, picked by whether the match has started:
+//
+//   Lobby  - one fixed isometric shot of the whole seat row, identical for every player
+//            (LobbyLayout.CameraPosition/Rotation) - not relative to your own car.
+//   Follow - third-person chase. Follows velocity direction rather than the car's facing (keeps
+//            the view stable through turns instead of swinging with the nose), with reversing
+//            unconditionally excluded from that so the camera never swings in front of the car
+//            while backing up.
+//
+// The switch is driven by PlayerMatchState.CanMove, which the host releases on match start -
+// no explicit "start the game camera" call needed anywhere. Reads the target's real Rigidbody
+// directly - no separate synced/visual object, same object PlayerMovement drives.
 public class PlayerCamera : MonoBehaviour
 {
     [SerializeField] Rigidbody target;
+    [SerializeField] PlayerMatchState matchState;
 
+    [Header("Follow view (match)")]
     [SerializeField] float distance = 6f;
     [SerializeField] float height = 2.5f;
     [SerializeField] float pitch = 12f; // degrees, downward
@@ -20,12 +29,35 @@ public class PlayerCamera : MonoBehaviour
 
     // Set at runtime by PlayerMovement.Spawned() - the car it should follow no longer exists
     // at edit time now that each player's car is spawned dynamically, not scene-placed.
-    public void SetTarget(Rigidbody newTarget) => target = newTarget;
+    public void SetTarget(Rigidbody newTarget, PlayerMatchState newMatchState)
+    {
+        target = newTarget;
+        matchState = newMatchState;
+        initialized = false;
+    }
 
+    bool InMatch => target != null && matchState != null && matchState.CanMove;
+
+    // The lobby shot needs no target at all, so it shows from the first frame - before this
+    // client's own car has even spawned - and is the same picture on every peer.
     void LateUpdate()
     {
-        if (target == null) return;
+        if (InMatch) FollowView();
+        else LobbyView();
+    }
 
+    void LobbyView()
+    {
+        transform.position = LobbyLayout.CameraPosition;
+        transform.rotation = LobbyLayout.CameraRotation;
+
+        // Seed the follow view so the hand-off on match start swings smoothly from behind.
+        if (target != null) followDirection = target.transform.forward;
+        initialized = false;
+    }
+
+    void FollowView()
+    {
         Vector3 velocity = target.linearVelocity;
         Vector3 carForward = target.transform.forward;
         float forwardSpeed = Vector3.Dot(velocity, carForward);

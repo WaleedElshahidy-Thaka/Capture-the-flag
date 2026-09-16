@@ -27,7 +27,7 @@ public static class GameSceneSetup
     const string PlayerResourcesPath = "Assets/_DEV/Game/Player/Resources";
     const string UndoLabel = "Setup Game Scene";
 
-    static readonly Color PanelColor = new Color(0.08f, 0.09f, 0.12f, 0.96f);
+    static readonly Color PanelColor = new Color(0.08f, 0.09f, 0.12f, 0.78f);
     static readonly Color ButtonColor = new Color(0.18f, 0.22f, 0.30f, 1f);
 
     [MenuItem("Game/Setup Game Scene")]
@@ -48,6 +48,7 @@ public static class GameSceneSetup
         BuildRamp();
         BuildCurve();
         BuildCamera();
+        BuildSeatMarkers();
 
         BuildPlayerCarPrefab();
         BuildMatchmakingSessionStatePrefab();
@@ -142,9 +143,9 @@ public static class GameSceneSetup
         wall.transform.localScale = scale;
     }
 
-    // Terrain to actually test driving physics against, not just a flat plate - player spawns
-    // (see PlayerLobbySpawner.SpawnOffsets) cluster near the arena center, so both features sit
-    // well clear of them, out toward the +Z and -X edges of the 50x50 arena.
+    // Terrain to actually test driving physics against, not just a flat plate - the lobby seat
+    // row (see LobbyLayout) sits near the arena center, so both features sit well clear of it,
+    // out toward the +Z and -X edges of the arena.
     static void BuildRamp()
     {
         if (GameObject.Find("Ramp") != null) return;
@@ -216,8 +217,36 @@ public static class GameSceneSetup
         }
 
         if (cameraGO.GetComponent<PlayerCamera>() == null) Undo.AddComponent<PlayerCamera>(cameraGO);
-        cameraGO.transform.position = new Vector3(0f, 12f, -14f);
-        cameraGO.transform.rotation = Quaternion.Euler(35f, 0f, 0f);
+        // Parked on the lobby shot at edit time too, so the scene view previews what players see.
+        cameraGO.transform.position = LobbyLayout.CameraPosition;
+        cameraGO.transform.rotation = LobbyLayout.CameraRotation;
+    }
+
+    // Visible markers for the six lobby seats, rebuilt from LobbyLayout every run (destroy and
+    // recreate, not find-or-keep) so the scene always shows the layout PlayerLobbySpawner is
+    // actually using. Also clears the leftovers of the earlier four-seat design - "SeatAnchors"
+    // with CenterAnchor/OtherAnchor1-3 and a "SeatAssigner" whose LobbySeatAssigner script was
+    // deleted in commit 0d5bbc3 - which survived in Game.unity as dead objects because this tool
+    // only ever found-or-created by name and never removed anything.
+    static void BuildSeatMarkers()
+    {
+        foreach (var legacyName in new[] { "SeatAnchors", "SeatAssigner" })
+        {
+            var legacy = GameObject.Find(legacyName);
+            if (legacy != null) UnityEngine.Object.DestroyImmediate(legacy);
+        }
+
+        var parent = new GameObject("SeatAnchors");
+        Undo.RegisterCreatedObjectUndo(parent, UndoLabel);
+
+        for (int slot = 0; slot < LobbyLayout.SlotCount; slot++)
+        {
+            var marker = new GameObject($"Seat_{slot}", typeof(LobbySeatMarker));
+            marker.transform.SetParent(parent.transform, false);
+            marker.transform.position = LobbyLayout.SlotPosition(slot);
+            marker.transform.rotation = LobbyLayout.SlotRotation;
+            marker.GetComponent<LobbySeatMarker>().SetSlot(slot);
+        }
     }
 
     // ─── PlayerCar (from the retired DriveSceneSetup) ───────────────────
@@ -237,8 +266,15 @@ public static class GameSceneSetup
         body.mass = 50f;
         body.linearDamping = 1.5f;
         body.angularDamping = 3f;
-        body.interpolation = RigidbodyInterpolation.Interpolate;
-        body.constraints = RigidbodyConstraints.FreezeRotationX | RigidbodyConstraints.FreezeRotationZ;
+        // No rotation constraints. PlayerMovement.ResolveAttitude actively levels the chassis
+        // (writes X/Z angular velocity every tick to conform to slopes and come back upright) -
+        // freezing X/Z here made PhysX cancel that every step, which was the rotation jitter
+        // seen in the inspector, and stopped the car conforming to the ramp and banked curve.
+        body.constraints = RigidbodyConstraints.None;
+        // None, not Interpolate: physics is stepped from Fusion's tick (RunnerSimulatePhysics),
+        // not Unity's FixedUpdate, and NetworkTransform already interpolates the transform for
+        // rendering. Rigidbody interpolation on top was a second writer fighting it each frame.
+        body.interpolation = RigidbodyInterpolation.None;
 
         if (go.GetComponent<PlayerMovement>() == null) Undo.AddComponent<PlayerMovement>(go);
         if (go.GetComponent<PlayerMatchState>() == null) Undo.AddComponent<PlayerMatchState>(go);
@@ -268,9 +304,76 @@ public static class GameSceneSetup
 
         WireTires(go, visual);
         BuildColliders(go, visual);
+        var nameTag = BuildNameTag(go);
+        WireLobbyVisibility(go, visual, nameTag);
 
         PrefabUtility.SaveAsPrefabAsset(go, PlayerCarPrefabPath);
         UnityEngine.Object.DestroyImmediate(go);
+    }
+
+    // Other players' robots are hidden until you're both searching (see PlayerLobbyVisibility)
+    // - the cosmetic children are what it toggles.
+    static void WireLobbyVisibility(GameObject car, GameObject visual, GameObject nameTag)
+    {
+        var visibility = car.GetComponent<PlayerLobbyVisibility>();
+        if (visibility == null) visibility = Undo.AddComponent<PlayerLobbyVisibility>(car);
+
+        var so = new SerializedObject(visibility);
+        var array = so.FindProperty("hiddenUntilMatched");
+        array.arraySize = 2;
+        array.GetArrayElementAtIndex(0).objectReferenceValue = visual;
+        array.GetArrayElementAtIndex(1).objectReferenceValue = nameTag;
+        so.ApplyModifiedProperties();
+    }
+
+    // A small world-space canvas above the chassis showing the player's name (PlayerNameTag reads
+    // PlayerMatchState.DisplayName and billboards it). Under the car root, not under Visual, so
+    // the cosmetic body lean doesn't tilt the text.
+    static GameObject BuildNameTag(GameObject car)
+    {
+        var existing = car.transform.Find("NameTag");
+        if (existing != null) UnityEngine.Object.DestroyImmediate(existing.gameObject);
+
+        var tagGO = new GameObject("NameTag", typeof(RectTransform), typeof(Canvas), typeof(PlayerNameTag));
+        tagGO.transform.SetParent(car.transform, false);
+        tagGO.transform.localPosition = new Vector3(0f, 1.6f, 0f);
+        tagGO.transform.localScale = Vector3.one * 0.01f;
+
+        var canvas = tagGO.GetComponent<Canvas>();
+        canvas.renderMode = RenderMode.WorldSpace;
+        var canvasRt = tagGO.GetComponent<RectTransform>();
+        canvasRt.sizeDelta = new Vector2(300f, 110f);
+
+        // Name on top, READY line beneath it (hidden until the player readies up).
+        var nameLabel = WorldLabel("Name", tagGO.transform, "Player", 36, Color.white, new Vector2(0f, 20f), 60f);
+        var readyLabel = WorldLabel("Ready", tagGO.transform, "READY", 30, new Color(0.3f, 0.9f, 0.4f), new Vector2(0f, -30f), 40f);
+        readyLabel.gameObject.SetActive(false);
+
+        var tag = tagGO.GetComponent<PlayerNameTag>();
+        SetField(tag, "nameLabel", nameLabel);
+        SetField(tag, "readyLabel", readyLabel);
+        SetField(tag, "matchState", car.GetComponent<PlayerMatchState>());
+        return tagGO;
+    }
+
+    static TextMeshProUGUI WorldLabel(string name, Transform parent, string text, float fontSize, Color color, Vector2 anchoredPosition, float height)
+    {
+        var go = new GameObject(name, typeof(RectTransform), typeof(TextMeshProUGUI));
+        go.transform.SetParent(parent, false);
+        var rt = go.GetComponent<RectTransform>();
+        rt.anchorMin = new Vector2(0f, 0.5f);
+        rt.anchorMax = new Vector2(1f, 0.5f);
+        rt.pivot = new Vector2(0.5f, 0.5f);
+        rt.sizeDelta = new Vector2(0f, height);
+        rt.anchoredPosition = anchoredPosition;
+
+        var label = go.GetComponent<TextMeshProUGUI>();
+        label.text = text;
+        label.fontSize = fontSize;
+        label.fontStyle = FontStyles.Bold;
+        label.alignment = TextAlignmentOptions.Center;
+        label.color = color;
+        return label;
     }
 
     // A compound of primitives that approximates the robot's actual shape: one box for the body
@@ -395,44 +498,78 @@ public static class GameSceneSetup
 
     class ScreenRefs
     {
-        public GameObject idlePanel, searchingPanel, soloBotPanel, readyPanel, startingPanel;
-        public Button findMatchButton, startWithBotsButton, readyToggleButton, cancelButton;
-        public TMP_Text searchingText, readyToggleLabel, loadingText;
+        public GameObject loadingPanel, idlePanel, searchingPanel, soloBotPanel, readyPanel, startingPanel;
+        public Button quickMatchButton, startWithBotsButton, readyToggleButton, cancelButton;
+        public TMP_Text loadingText, searchingText, playersFoundText, readyToggleLabel;
     }
 
+    // A full-screen black Loading panel, then compact translucent side panels down the left
+    // edge - never an overlay over the arena, so the robots stay in view. Each phase's panel is
+    // its own small box; Cancel sits in a separate box below them.
     static void BuildScreen(RectTransform canvas, out ScreenRefs refs)
     {
         refs = new ScreenRefs();
 
         var root = GetOrCreateUI("MatchmakingScreen", canvas, typeof(MatchmakingScreen));
         Stretch(root);
+        RemoveLegacyChildren(root);
 
-        var idle = Panel("IdlePanel", root);
-        var idleContent = VList("Content", idle);
-        refs.findMatchButton = Btn("FindMatchButton", idleContent, "Find Match");
-        refs.loadingText = TextEl("LoadingText", idleContent, "Loading Game... 0s", 24);
+        var loading = GetOrCreateUI("LoadingPanel", root, typeof(Image));
+        Stretch(loading);
+        loading.GetComponent<Image>().color = Color.black;
+        refs.loadingText = TextEl("LoadingText", loading, "Loading... 0s", 28, 48);
+        var loadingTextRt = refs.loadingText.rectTransform;
+        loadingTextRt.anchorMin = new Vector2(0.5f, 0.5f);
+        loadingTextRt.anchorMax = new Vector2(0.5f, 0.5f);
+        loadingTextRt.pivot = new Vector2(0.5f, 0.5f);
+        loadingTextRt.sizeDelta = new Vector2(600f, 48f);
+        loadingTextRt.anchoredPosition = Vector2.zero;
+        refs.loadingPanel = loading.gameObject;
+
+        var idle = SidePanel("IdlePanel", root);
+        refs.quickMatchButton = Btn("QuickMatchButton", idle, "Quick Match");
         refs.idlePanel = idle.gameObject;
 
-        var searching = Panel("SearchingPanel", root);
-        var searchingContent = VList("Content", searching);
-        refs.searchingText = TextEl("SearchingText", searchingContent, "Finding player... 0s", 32);
-
-        var soloBot = GetOrCreateUI("SoloBotPanel", searchingContent, typeof(VerticalLayoutGroup));
-        refs.startWithBotsButton = Btn("StartWithBotsButton", soloBot, "Don't wait, start with computer players");
+        var searching = SidePanel("SearchingPanel", root);
+        refs.searchingText = TextEl("SearchingText", searching, "Searching for players... 0s", 20, 36);
+        refs.playersFoundText = TextEl("PlayersFoundText", searching, "2 / 6 players found", 18, 32);
+        var soloBot = GetOrCreateUI("SoloBotPanel", searching, typeof(VerticalLayoutGroup));
+        refs.startWithBotsButton = Btn("StartWithBotsButton", soloBot, "Start with computer players", 44, 18);
         refs.soloBotPanel = soloBot.gameObject;
-
-        var ready = GetOrCreateUI("ReadyPanel", searchingContent, typeof(VerticalLayoutGroup));
-        refs.readyToggleButton = Btn("ReadyToggleButton", ready, "Don't wait, play with computer players");
+        var ready = GetOrCreateUI("ReadyPanel", searching, typeof(VerticalLayoutGroup));
+        refs.readyToggleButton = Btn("ReadyToggleButton", ready, "Play with computer players", 44, 18);
         refs.readyToggleLabel = refs.readyToggleButton.GetComponentInChildren<TMP_Text>();
         refs.readyPanel = ready.gameObject;
-
-        refs.cancelButton = Btn("CancelButton", searchingContent, "Cancel");
         refs.searchingPanel = searching.gameObject;
 
-        var starting = Panel("StartingPanel", root);
-        var startingContent = VList("Content", starting);
-        TextEl("StartingText", startingContent, "Starting...", 40);
+        var starting = SidePanel("StartingPanel", root);
+        TextEl("StartingText", starting, "Starting...", 26, 40);
         refs.startingPanel = starting.gameObject;
+
+        // Cancel lives at the root, anchored below the phase panels.
+        var cancelBox = SidePanel("CancelPanel", root, anchoredY: -120f);
+        refs.cancelButton = Btn("CancelButton", cancelBox, "Cancel", 40);
+        cancelBox.GetComponent<Image>().enabled = false;
+
+        // Loading must draw over everything else.
+        loading.SetAsLastSibling();
+    }
+
+    // Objects from earlier UI layouts that would otherwise survive re-runs as dead objects
+    // (GetOrCreateUI only finds-or-creates by name) - removed explicitly before rebuilding.
+    static void RemoveLegacyChildren(Transform root)
+    {
+        foreach (Transform panel in root)
+        {
+            var content = panel.Find("Content");
+            if (content != null) UnityEngine.Object.DestroyImmediate(content.gameObject);
+        }
+
+        foreach (var path in new[] { "SearchingPanel/CancelButton", "IdlePanel/LoadingText", "IdlePanel/FindMatchButton", "FoundPanel", "LobbyPanel" })
+        {
+            var legacy = root.Find(path);
+            if (legacy != null) UnityEngine.Object.DestroyImmediate(legacy.gameObject);
+        }
     }
 
     static void WireScreen(RectTransform canvas, ScreenRefs refs, MatchmakingFlowController flowController)
@@ -440,11 +577,13 @@ public static class GameSceneSetup
         var screen = canvas.Find("MatchmakingScreen").GetComponent<MatchmakingScreen>();
 
         SetField(screen, "flowController", flowController);
-        SetField(screen, "idlePanel", refs.idlePanel);
-        SetField(screen, "findMatchButton", refs.findMatchButton);
+        SetField(screen, "loadingPanel", refs.loadingPanel);
         SetField(screen, "loadingText", refs.loadingText);
+        SetField(screen, "idlePanel", refs.idlePanel);
+        SetField(screen, "quickMatchButton", refs.quickMatchButton);
         SetField(screen, "searchingPanel", refs.searchingPanel);
         SetField(screen, "searchingText", refs.searchingText);
+        SetField(screen, "playersFoundText", refs.playersFoundText);
         SetField(screen, "soloBotPanel", refs.soloBotPanel);
         SetField(screen, "startWithBotsButton", refs.startWithBotsButton);
         SetField(screen, "readyPanel", refs.readyPanel);
@@ -456,25 +595,28 @@ public static class GameSceneSetup
 
     // ─── Low-level UI builders ───────────────────────────────────────────
 
-    static RectTransform Panel(string name, Transform parent)
-    {
-        var rt = GetOrCreateUI(name, parent, typeof(Image));
-        Stretch(rt);
-        rt.GetComponent<Image>().color = PanelColor;
-        return rt;
-    }
+    const float SidePanelWidth = 340f;
+    const float SidePanelMargin = 24f;
 
-    static RectTransform VList(string name, Transform parent, float width = 640, float spacing = 18)
+    // A small translucent box anchored to the left edge, vertically centred (offset by
+    // anchoredY), sized to its content. Its VerticalLayoutGroup lays the controls out directly -
+    // no nested Content object.
+    static RectTransform SidePanel(string name, Transform parent, float anchoredY = 0f)
     {
-        var rt = GetOrCreateUI(name, parent, typeof(VerticalLayoutGroup), typeof(ContentSizeFitter));
-        rt.anchorMin = new Vector2(0.5f, 0.5f);
-        rt.anchorMax = new Vector2(0.5f, 0.5f);
-        rt.pivot = new Vector2(0.5f, 0.5f);
-        rt.sizeDelta = new Vector2(width, 0);
-        rt.anchoredPosition = Vector2.zero;
+        var rt = GetOrCreateUI(name, parent, typeof(Image), typeof(VerticalLayoutGroup), typeof(ContentSizeFitter));
+        rt.anchorMin = new Vector2(0f, 0.5f);
+        rt.anchorMax = new Vector2(0f, 0.5f);
+        rt.pivot = new Vector2(0f, 0.5f);
+        rt.sizeDelta = new Vector2(SidePanelWidth, 0f);
+        rt.anchoredPosition = new Vector2(SidePanelMargin, anchoredY);
+
+        var img = rt.GetComponent<Image>();
+        img.color = PanelColor;
+        img.enabled = true;
 
         var vlg = rt.GetComponent<VerticalLayoutGroup>();
-        vlg.spacing = spacing;
+        vlg.spacing = 10f;
+        vlg.padding = new RectOffset(14, 14, 12, 12);
         vlg.childAlignment = TextAnchor.UpperCenter;
         vlg.childControlWidth = true;
         vlg.childControlHeight = false;
@@ -500,7 +642,7 @@ public static class GameSceneSetup
         return tmp;
     }
 
-    static Button Btn(string name, Transform parent, string label, float height = 56)
+    static Button Btn(string name, Transform parent, string label, float height = 44, float fontSize = 20)
     {
         var rt = GetOrCreateUI(name, parent, typeof(Image), typeof(Button), typeof(LayoutElement));
         var img = rt.GetComponent<Image>();
@@ -514,7 +656,7 @@ public static class GameSceneSetup
         Stretch(labelRt);
         var tmp = labelRt.GetComponent<TextMeshProUGUI>();
         tmp.text = label;
-        tmp.fontSize = 24;
+        tmp.fontSize = fontSize;
         tmp.alignment = TextAlignmentOptions.Center;
         tmp.color = Color.white;
 
@@ -534,7 +676,15 @@ public static class GameSceneSetup
     static RectTransform GetOrCreateUI(string name, Transform parent, params Type[] components)
     {
         var existing = parent != null ? parent.Find(name) : null;
-        if (existing != null) return existing.GetComponent<RectTransform>();
+        if (existing != null)
+        {
+            // An object from an earlier build may predate a component this version wants on it
+            // (e.g. the side panels gained a VerticalLayoutGroup) - add what's missing rather
+            // than returning something the caller will then GetComponent-null on.
+            foreach (var type in components)
+                if (existing.GetComponent(type) == null) Undo.AddComponent(existing.gameObject, type);
+            return existing.GetComponent<RectTransform>();
+        }
 
         var types = new Type[components.Length + 1];
         types[0] = typeof(RectTransform);

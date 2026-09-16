@@ -1,44 +1,41 @@
 using System;
 
-// Represents "the Quick Match session I'm currently in". Returned by IQuickMatchService on
-// success. Everything MatchmakingFlowController needs lives here so it never touches Fusion
-// types directly - QuickMatchLocalService and QuickMatchFusionService both satisfy this
-// exact same contract, one with a fake single-player session, one backed by a live
-// NetworkRunner. Trimmed sibling of the shelved IActiveRoomSession - no RoomCode/IsVisible/
-// MakeVisible, since Quick Match has no room codes or visibility choice.
+// Represents "the Quick Match session I'm connected to" - joined automatically on scene start.
+// Everything MatchmakingFlowController needs lives here so it never touches Fusion types
+// directly; QuickMatchLocalService and QuickMatchFusionService both satisfy this same contract.
 public interface IActiveQuickMatchSession
 {
     int PlayerCount { get; }
     int MaxPlayers { get; }
     bool IsHost { get; }
 
-    // How many connected players are actually searching (clicked Find Match), as opposed to
-    // just present in the hub. PlayerCount above is total hub occupancy; this is the subset
-    // that counts toward match-start conditions.
+    // True once this client's own car has been spawned and seated - the loading screen
+    // stays up until then.
+    bool IsLocalPlayerSpawned { get; }
+
+    // How many connected players have pressed Quick Match, as opposed to just being in the
+    // arena. This is what counts toward a match.
     int SearchingCount { get; }
     bool IsSearching { get; }
     void SetSearching(bool searching);
 
-    // Search timer. Counts UP from 0 to MatchmakingConfig.SearchDurationSeconds. Network-
-    // synchronized in the Fusion backend (see FusionActiveQuickMatchSession) so a player
-    // joining mid-search sees the true elapsed time, not a fresh countdown.
+    // The displayed timer. Alone, it's your own (from your Quick Match press). With 2+ players
+    // searching together it's the highest of theirs - the shared timer.
     float ElapsedSeconds { get; }
 
-    // True once MatchmakingConfig.BotOptionUnlockSeconds has elapsed - well before the
-    // timer's full 120s display cap. Gates the solo bot button / ready toggle appearing.
+    // True once ElapsedSeconds passes MatchmakingConfig.BotOptionUnlockSeconds.
     bool BotOptionUnlocked { get; }
 
-    // This client's own ready state. Meaningless while solo.
+    // This client's own ready state (2+ players, after the bot option unlocked).
     bool IsReady { get; }
     void SetReady(bool ready);
 
-    // Solo-only: skip waiting out the timer and start immediately, bots filling every other slot.
+    // Solo-only: start immediately, bots filling every other slot.
     void RequestStartWithBots();
 
-    // Set once the start decision has been made - by whichever peer holds authority to
-    // decide (the host, in the Fusion backend): room filled naturally, every present real
-    // player is ready, or the solo bot request. BotCount is resolved at that same moment
-    // and never changes after.
+    // Set once the start decision has been made by the authority (the host, in the Fusion
+    // backend): room filled naturally, every searching player ready, or the solo bot request.
+    // BotCount is resolved at that same moment and never changes after.
     bool MatchStarting { get; }
     int BotCount { get; }
 

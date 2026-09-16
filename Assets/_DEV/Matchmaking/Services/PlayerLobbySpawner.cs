@@ -19,20 +19,6 @@ public class PlayerLobbySpawner
 {
     const string PlayerCarPrefabName = "PlayerCar";
 
-    // Six seats, one per MatchmakingConfig.MaxPlayers slot, laid out in a ring so nobody starts
-    // advantaged (Glowtag FD-06's start-anchor requirement). Placeholder positions until the art
-    // team's arena arrives with real authored anchors. PlayerId is assigned by Fusion and is the
-    // same value on every peer, so the host placing player N always puts them in the same seat.
-    static readonly Vector3[] SpawnOffsets =
-    {
-        new Vector3(0f, 1f, -6f),
-        new Vector3(5f, 1f, -3f),
-        new Vector3(5f, 1f, 3f),
-        new Vector3(0f, 1f, 6f),
-        new Vector3(-5f, 1f, 3f),
-        new Vector3(-5f, 1f, -3f),
-    };
-
     NetworkObject playerCarPrefab;
 
     public void HandlePlayerJoined(NetworkRunner runner, PlayerRef player)
@@ -48,8 +34,10 @@ public class PlayerLobbySpawner
             return;
         }
 
-        Vector3 spawnPosition = SpawnOffsets[player.PlayerId % SpawnOffsets.Length];
-        runner.Spawn(playerCarPrefab, spawnPosition, Quaternion.identity, player);
+        // Seat = PlayerId, which Fusion assigns and which is the same value on every peer, so
+        // the host placing player N always puts them in the same seat of LobbyLayout's row.
+        int slot = player.PlayerId % LobbyLayout.SlotCount;
+        runner.Spawn(playerCarPrefab, LobbyLayout.SlotPosition(slot), LobbyLayout.SlotRotation, player);
     }
 
     // The host owns every car, so it is also the peer that despawns one when its player leaves.

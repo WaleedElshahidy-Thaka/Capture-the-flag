@@ -1,33 +1,32 @@
 using System;
 using UnityEngine;
 
-// Owns the Idle -> Searching -> (WaitingSolo | WaitingReady) -> Starting state machine. Talks
-// only to IQuickMatchService / IActiveQuickMatchSession - never references Fusion types
-// directly, so it drives identically whether MatchmakingServices is backed by
+// Owns the Loading -> Idle -> Searching -> (WaitingSolo | WaitingReady) -> Starting state
+// machine. Talks only to IQuickMatchService / IActiveQuickMatchSession - never references
+// Fusion types directly, so it drives identically whether MatchmakingServices is backed by
 // QuickMatchLocalService or QuickMatchFusionService. MatchmakingScreen binds to PhaseChanged
 // and reads Session for display; it has no logic of its own.
 //
-// Connecting to the shared hub happens automatically on scene start, not behind Find Match -
-// every player who opens the game is immediately visible to every other connected player, with
-// their real PlayerCar already spawned and positioned (see PlayerLobbySpawner), just not
-// drivable yet. Find Match no longer triggers the connection itself; it just flags this player
-// as actively searching, which is what actually counts toward a match starting (see
-// PlayerMatchState.IsSearching / MatchmakingSessionState.FixedUpdateNetwork). Phase starts at
-// Connecting (Find Match disabled, MatchmakingScreen shows a loading message) until the
-// connection actually completes, then moves to Idle for as long as you're connected-but-not-
-// searching.
+// The flow, as specified:
+//   open the game  -> Loading (black) until connected and your own car is seated
+//   Idle           -> arena, your robot, Quick Match button; nothing happens until pressed
+//   Searching      -> timer from 0; a second searcher appears the moment there are two,
+//                     and the timer becomes the shared (highest) one
+//   WaitingSolo    -> 30s alone: "start with computer players" starts immediately
+//   WaitingReady   -> 30s shared, 2+: ready toggle; everyone ready -> start with bots,
+//                     otherwise keep searching (more players can still join)
 public class MatchmakingFlowController : MonoBehaviour
 {
-    public MatchmakingPhase Phase { get; private set; } = MatchmakingPhase.Connecting;
+    public MatchmakingPhase Phase { get; private set; } = MatchmakingPhase.Loading;
     public IActiveQuickMatchSession Session { get; private set; }
     public event Action<MatchmakingPhase> PhaseChanged;
 
     void Start()
     {
-        StartCoroutine(MatchmakingServices.QuickMatch.StartQuickMatch(MatchmakingConfig.GameId, OnStartResult));
+        StartCoroutine(MatchmakingServices.QuickMatch.StartQuickMatch(MatchmakingConfig.GameId, OnConnected));
     }
 
-    void OnStartResult(StartQuickMatchResult result)
+    void OnConnected(StartQuickMatchResult result)
     {
         if (!result.Success)
         {
@@ -36,7 +35,7 @@ public class MatchmakingFlowController : MonoBehaviour
         }
 
         Session = result.Session;
-        SetPhase(MatchmakingPhase.Idle);
+        // Stays in Loading until the car is actually seated - see Update.
     }
 
     public void FindMatch()
@@ -50,17 +49,26 @@ public class MatchmakingFlowController : MonoBehaviour
     public void RequestStartWithBots() => Session?.RequestStartWithBots();
     public void ToggleReady() => Session?.SetReady(!Session.IsReady);
 
-    // No longer leaves the session - cancelling means "stop searching", not "disconnect from
-    // the hub". You stay connected and visible to other players either way.
+    // Stop searching. You stay connected and in your seat.
     public void Cancel()
     {
-        Session?.SetSearching(false);
+        if (Session == null || Phase == MatchmakingPhase.Idle || Phase == MatchmakingPhase.Starting) return;
+
+        Session.SetSearching(false);
         SetPhase(MatchmakingPhase.Idle);
     }
 
     void Update()
     {
-        if (Session == null || Phase == MatchmakingPhase.Idle || Phase == MatchmakingPhase.Starting) return;
+        if (Session == null) return;
+
+        if (Phase == MatchmakingPhase.Loading)
+        {
+            if (Session.IsLocalPlayerSpawned) SetPhase(MatchmakingPhase.Idle);
+            return;
+        }
+
+        if (Phase == MatchmakingPhase.Idle || Phase == MatchmakingPhase.Starting) return;
 
         if (Session.MatchStarting)
         {
@@ -69,22 +77,25 @@ public class MatchmakingFlowController : MonoBehaviour
             return;
         }
 
+        bool unlocked = Session.BotOptionUnlocked;
+        bool alone = Session.SearchingCount <= 1;
+
         switch (Phase)
         {
             case MatchmakingPhase.Searching:
-                if (Session.BotOptionUnlocked)
-                    SetPhase(Session.SearchingCount == 1 ? MatchmakingPhase.WaitingSolo : MatchmakingPhase.WaitingReady);
+                if (unlocked) SetPhase(alone ? MatchmakingPhase.WaitingSolo : MatchmakingPhase.WaitingReady);
                 break;
 
-            // The session stays open to new joins throughout the Waiting state, so a solo
-            // player can still be joined by another searcher after their own timer expired, and
-            // a room that drops back to one searcher (someone left or stopped searching) falls
-            // back to the solo path.
+            // The shared timer is the highest searcher's, so it can drop if that player leaves -
+            // in which case the bot option goes away again until the timer catches back up.
             case MatchmakingPhase.WaitingSolo:
-                if (Session.SearchingCount > 1) SetPhase(MatchmakingPhase.WaitingReady);
+                if (!unlocked) SetPhase(MatchmakingPhase.Searching);
+                else if (!alone) SetPhase(MatchmakingPhase.WaitingReady);
                 break;
+
             case MatchmakingPhase.WaitingReady:
-                if (Session.SearchingCount <= 1) SetPhase(MatchmakingPhase.WaitingSolo);
+                if (!unlocked) SetPhase(MatchmakingPhase.Searching);
+                else if (alone) SetPhase(MatchmakingPhase.WaitingSolo);
                 break;
         }
     }

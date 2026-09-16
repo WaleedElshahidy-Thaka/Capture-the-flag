@@ -12,10 +12,10 @@ public class StartQuickMatchResult
 // Drives which panel MatchmakingScreen shows. Owned by MatchmakingFlowController.
 public enum MatchmakingPhase
 {
-    Connecting,    // scene just started, still joining the shared hub - Find Match disabled
-    Idle,          // connected to the hub, but not searching - before "Find Match" is pressed
-    Searching,     // 0-120s elapsed, room not full yet
-    WaitingSolo,   // timer expired, still alone -> "start with computer players" button
-    WaitingReady,  // timer expired, 2-3 real players present -> per-player ready toggle
+    Loading,       // black screen: connecting, own car not yet spawned and seated
+    Idle,          // in the arena, own robot visible, Quick Match button - nothing happens until pressed
+    Searching,     // timer counting up; other searchers become visible the moment there are 2+
+    WaitingSolo,   // timer >= 30s, still alone -> "start with computer players" (immediate)
+    WaitingReady,  // shared timer >= 30s, 2+ searching -> ready toggle; all ready -> start with bots
     Starting       // MatchStarting observed true; StartMatch has been called
 }

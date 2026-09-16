@@ -36,10 +36,10 @@ public class HandlingValues
     public AnimationCurve SpeedScalingCurve = AnimationCurve.Linear(0f, 0.6f, 1f, 1f);
 
     [Header("Lateral")]
-    [Tooltip("Fraction of sideways velocity removed per tick's worth of time. High = goes where it points.")]
-    public float LateralGrip = 0.86f;
-    [Tooltip("Lateral grip while drifting, as a fraction of normal. Placeholder until doc 04 owns it.")]
-    public float DriftGripMultiplier = 0.45f;
+    [Tooltip("How fast sideways velocity is scrubbed off, per second. Sideways speed decays as exp(-rate * dt), so it's independent of tick rate. ~20 means 90% gone in about 0.12s: goes where it points, with a small slide on hard corners.")]
+    public float GripRate = 20f;
+    [Tooltip("Same, while the drift button (Left Ctrl) is held. ~3 means the slide lingers for a second or so - the chassis visibly goes sideways. Placeholder until Drift & Boost (doc 04) owns the drift state machine.")]
+    public float DriftGripRate = 3f;
 
     [Header("Airborne")]
     public float GravityScale = 2.2f;         // above real gravity, for arcade weight

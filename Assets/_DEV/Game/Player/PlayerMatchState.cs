@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using Fusion;
 using UnityEngine;
 
@@ -9,40 +8,56 @@ using UnityEngine;
 // "how do I actually drive" (PlayerMovement.FixedUpdateNetwork only asks this component's
 // CanMove, it owns none of this state itself).
 //
-// Replaces the old separate PlayerLobbyState object: previously the lobby placeholder (ready/
-// searching data, spawned at connect) and the real car (spawned only once a match started) were
-// two different NetworkObjects that had to be kept in sync. Now there's one real PlayerCar,
-// present and positioned from the moment you connect, just not drivable (CanMove) until a match
-// starts - so the same object that used to be lobby-only data now lives right on the car itself.
+// One real PlayerCar per player, spawned by the host the moment that player connects (scene
+// start), seated in the lobby row, not drivable (CanMove) until a match starts.
 [RequireComponent(typeof(PlayerMovement))]
 public class PlayerMatchState : NetworkBehaviour
 {
-    [Networked] public NetworkBool IsReady { get; set; }
     [Networked] public NetworkBool IsSearching { get; set; }
+    [Networked] public NetworkBool IsReady { get; set; }
     [Networked] public NetworkBool CanMove { get; set; }
 
-    // The search timer/elapsed-time display lives on MatchmakingSessionState, not here - it's a
-    // shared lobby clock (synced for everyone searching together), not a per-player one. See
-    // that class's doc comment for why a per-player timer was tried and reverted.
+    // Shown above the car by PlayerNameTag. Sent up by the owning client right after spawn
+    // (RPC_SetDisplayName) - the host spawns every car and has no idea what the player behind
+    // a client is called until told.
+    [Networked] public NetworkString<_32> DisplayName { get; set; }
+
+    // The tick this player's own search began (set by the host when the searching RPC lands).
+    // Networked so every peer can compute every searcher's elapsed time - the shared timer is
+    // the highest of them, and each peer derives it locally from this.
+    [Networked] int SearchStartTick { get; set; }
+
+    public float SearchElapsedSeconds
+    {
+        get
+        {
+            if (!IsSearching || Runner == null) return 0f;
+            int currentTick = Runner.Tick; // Tick converts implicitly to int
+            return Mathf.Clamp((currentTick - SearchStartTick) * Runner.DeltaTime, 0f, MatchmakingConfig.SearchDurationSeconds);
+        }
+    }
 
     // Every currently-spawned instance, on every peer. Single source of truth
     // MatchmakingSessionState reads from to decide when a match should start.
     public static readonly List<PlayerMatchState> Active = new List<PlayerMatchState>();
     public static event Action RosterChanged;
 
-    // This client's own instance - set in Spawned() the same way MatchmakingSessionState.Local
-    // is, so MatchStarter can flip CanMove on exactly the right object without a scene search.
+    // This client's own instance. HasInputAuthority, not HasStateAuthority - under Host/Client
+    // the host holds State Authority over every car, so HasStateAuthority would make Local
+    // point at whichever car happened to spawn last on the host, and at nothing at all on a
+    // client. Input Authority is the per-player one, assigned by the host at Runner.Spawn time.
     public static PlayerMatchState Local;
 
-    // HasInputAuthority, not HasStateAuthority - under Host/Client the host holds State Authority
-    // over every car, so HasStateAuthority would make Local point at whichever car happened to
-    // spawn last on the host, and at nothing at all on a client. Input Authority is the
-    // per-player one, assigned by the host at Runner.Spawn time, so it is already correct by the
-    // time this runs on any peer.
     public override void Spawned()
     {
         Active.Add(this);
-        if (Object.HasInputAuthority) Local = this;
+
+        if (Object.HasInputAuthority)
+        {
+            Local = this;
+            RPC_SetDisplayName(PlayerIdentity.LocalDisplayName);
+        }
+
         RosterChanged?.Invoke();
     }
 
@@ -53,9 +68,16 @@ public class PlayerMatchState : NetworkBehaviour
         RosterChanged?.Invoke();
     }
 
-    // A client can only request its own ready/searching flag change - the write itself always
-    // happens on the State Authority (the host), then replicates back out to everyone
-    // automatically.
+    // A client can only request its own flag change - the write itself always happens on the
+    // State Authority (the host), then replicates back out to everyone automatically.
+    [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
+    public void RPC_SetSearching(NetworkBool searching)
+    {
+        if (searching && !IsSearching) SearchStartTick = Runner.Tick;
+        IsSearching = searching;
+        if (!searching) IsReady = false;
+    }
+
     [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
     public void RPC_SetReady(NetworkBool ready)
     {
@@ -63,21 +85,21 @@ public class PlayerMatchState : NetworkBehaviour
     }
 
     [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
-    public void RPC_SetSearching(NetworkBool searching)
+    public void RPC_SetDisplayName(string name)
     {
-        IsSearching = searching;
+        DisplayName = name;
     }
 
-    // Solo-only path. A lone searcher already has State Authority over their own
-    // PlayerMatchState under Shared Mode, so this always executes locally in practice - it goes
-    // through an RPC anyway so the call path from MatchmakingFlowController is uniform
-    // regardless of backend/authority. Guards on how many players are actually searching, not
-    // total connected players - other players can be connected to the hub without searching,
-    // and shouldn't block (or count toward) a lone searcher's solo start.
+    // Solo-only path: guards on how many players are searching, not how many are connected -
+    // others can be in the arena without searching, and neither block nor count toward a lone
+    // searcher's solo start. Runs on the state authority (the host) whichever peer sent it.
     [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
     public void RPC_RequestStartWithBots()
     {
-        int searchingCount = Active.Count(p => p.IsSearching);
+        int searchingCount = 0;
+        for (int i = 0; i < Active.Count; i++)
+            if (Active[i].IsSearching) searchingCount++;
+
         if (searchingCount != 1) return;
         MatchmakingSessionState.Local?.TriggerStart(MatchmakingConfig.MaxPlayers - searchingCount);
     }

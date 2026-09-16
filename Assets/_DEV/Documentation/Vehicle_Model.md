@@ -50,6 +50,18 @@ no-clamp overspeed rule. Steering sets a *target yaw rate* approached through
 bots to be an input source feeding this same pipeline, and bots have no `PlayerRef` to arrive via
 `GetInput`.
 
+**Lateral grip is a per-second rate** (`GripRate`, `DriftGripRate`; sideways velocity decays as
+`exp(-rate·dt)`), not a fraction-per-tick. The first version removed 86% of sideways velocity
+*every tick* — 60 times a second — which is a rail: the car snapped to its heading in two ticks
+and even the drift button (Left Ctrl) barely slid. The rate form is also tick-rate independent,
+which matters for the still-open N2 ruling. Doc 04's real drift state machine (hop, charge,
+release window, boost) is still Phase 6; `DriftGripRate` is only the grip half of it.
+
+**Physics is stepped by Fusion**, once per tick, via the `RunnerSimulatePhysics` addon on the
+runner (see `Networking_Progress.md`). The Rigidbody has **no rotation constraints** — an earlier
+prefab build still froze X/Z, which made PhysX cancel `ResolveAttitude`'s levelling every step
+(the rotation jitter seen in the inspector) and stopped the chassis conforming to the ramp.
+
 ## Attitude: levelled, not frozen
 
 An earlier version froze pitch and roll on the Rigidbody to guarantee doc 03's *"the chassis

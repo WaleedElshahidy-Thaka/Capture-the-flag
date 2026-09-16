@@ -21,6 +21,10 @@ using Fusion;
 // (Collision, Contact & Recovery) will classify and resolve them in Phase 2. Until then wall
 // contact is crude, because a direct velocity write partly overwrites PhysX's own response -
 // that's expected, and it's what Phase 2 exists to replace rather than something to patch here.
+// Runs before RunnerSimulatePhysics (order 0) within the same tick, so the velocity written at
+// step 10 is what PhysX integrates for this tick rather than the next. Fusion 2 orders
+// FixedUpdateNetwork by Unity's script execution order.
+[DefaultExecutionOrder(-50)]
 [RequireComponent(typeof(Rigidbody))]
 [RequireComponent(typeof(PlayerMatchState))]
 public class PlayerMovement : NetworkBehaviour
@@ -68,14 +72,16 @@ public class PlayerMovement : NetworkBehaviour
         body = GetComponent<Rigidbody>();
         matchState = GetComponent<PlayerMatchState>();
 
-        // Rotation constraints are deliberately NOT set here. An earlier version froze pitch and
-        // roll to guarantee doc 03's "the chassis never lands upside down" - but freezing also
-        // stops it conforming to slopes, and it silently overwrote whatever was set on the
-        // prefab. The no-rollover rule is now met by actively levelling the chassis (see
-        // ResolveAttitude) rather than by forbidding the rotation outright, which is what the
-        // doc actually asks for: "force-levelled", not "unable to rotate".
+        // No rotation constraints - enforced here in code, not left to the prefab. An earlier
+        // version froze pitch and roll to guarantee doc 03's "the chassis never lands upside
+        // down", but freezing stops the chassis conforming to slopes, and it makes PhysX cancel
+        // ResolveAttitude's levelling every step (the rotation jitter seen in the inspector).
+        // The no-rollover rule is met by actively levelling instead, which is what the doc
+        // actually asks for: "force-levelled", not "unable to rotate". Clearing it here means a
+        // prefab that still carries stale constraints can't silently reintroduce the bug.
+        body.constraints = RigidbodyConstraints.None;
 
-        // Frictionless on purpose. The drive model owns grip - lateral hold is LateralGrip in
+        // Frictionless on purpose. The drive model owns grip - lateral hold is GripRate in
         // the lateral step, not a PhysicsMaterial - so any friction here would be a second,
         // unmodelled force fighting the composed velocity. Doc 03 rules out "friction materials
         // doing the work" explicitly.
@@ -97,7 +103,7 @@ public class PlayerMovement : NetworkBehaviour
 
         var cameraGO = GameObject.Find("Main Camera");
         if (cameraGO != null && cameraGO.TryGetComponent(out PlayerCamera cam))
-            cam.SetTarget(body);
+            cam.SetTarget(body, matchState);
     }
 
     public override void FixedUpdateNetwork()
@@ -188,12 +194,16 @@ public class PlayerMovement : NetworkBehaviour
         // Step 7: steering.
         ResolveSteering(input, forwardSpeed, dt, authority: 1f);
 
-        // Step 8: lateral. The fraction of sideways velocity removed per tick's worth of time -
-        // the gap between where the chassis points and where it's going is the slide, and every
-        // drift is that gap being opened deliberately. Scrub is not returned to the chassis.
-        float driftAuthority = input.Drift ? handling.DriftGripMultiplier : 1f;
-        float grip = Mathf.Clamp01(handling.LateralGrip * driftAuthority);
-        float lateral = local.x * (1f - grip);
+        // Step 8: lateral. Sideways velocity decays exponentially at a per-second rate - the gap
+        // between where the chassis points and where it's going is the slide, and every drift
+        // is that gap being opened deliberately. Scrub is not returned to the chassis.
+        //
+        // A rate, not a fraction-per-tick: an earlier version removed 86% of sideways velocity
+        // EVERY tick (60 times a second), which is a rail - the car snapped to its heading in
+        // two ticks and even the drift button barely slid. exp(-rate*dt) gives the same feel at
+        // any tick rate, which also matters for the still-open tick rate ruling (N2).
+        float gripRate = input.Drift ? handling.DriftGripRate : handling.GripRate;
+        float lateral = local.x * Mathf.Exp(-gripRate * dt);
 
         return transform.TransformDirection(new Vector3(lateral, vertical, forwardSpeed));
     }

@@ -1,29 +1,26 @@
-using System.Linq;
 using Fusion;
 
-// One singleton per Quick Match session, spawned the moment the session is created. Holds what
-// must be identical for every searching player: the shared search timer, whether the match is
-// starting, and the resolved bot count.
+// One singleton per Quick Match session, spawned by the host the moment the session is created.
+// Holds the shared start decision (MatchStarting, BotCount) and makes it, host-side, from the
+// replicated per-player state on PlayerMatchState:
 //
-// The search timer is session-wide again, not per-player (an earlier pass tried per-player -
-// each player's own countdown starting from their own Find Match click - but that meant two
-// players in the same lobby saw different numbers, which is the wrong feel for a shared search).
-// It doesn't start at session creation either (the complaint that predated the per-player
-// attempt): it starts the first time ANY player begins searching, tracked by SearchStarted so it
-// only ever starts once, then stays synced for everyone searching from then on.
+//   - six searching                                   -> start, no bots
+//   - 2+ searching, shared timer >= 30s, all ready    -> start, bots fill the empty seats
+//   - one searching                                   -> starts only via RPC_RequestStartWithBots
+//
+// The timer itself is per-player (PlayerMatchState.SearchStartTick); "shared" just means the
+// highest of the searching players' timers, which every peer derives locally.
+//
+// Runs at tick rate on the host, so it counts with plain loops rather than LINQ - no per-tick
+// allocations.
 public class MatchmakingSessionState : NetworkBehaviour
 {
     [Networked] public NetworkBool MatchStarting { get; set; }
     [Networked] public int BotCount { get; set; }
-    [Networked] NetworkBool SearchStarted { get; set; }
-    [Networked] TickTimer SearchTimer { get; set; }
-
-    public float ElapsedSeconds => MatchmakingConfig.SearchDurationSeconds - (SearchTimer.RemainingTime(Runner) ?? MatchmakingConfig.SearchDurationSeconds);
-    public bool BotOptionUnlocked => SearchStarted && ElapsedSeconds >= MatchmakingConfig.BotOptionUnlockSeconds;
 
     // Set on every peer this object replicates to (Spawned fires for the host and every
-    // client). FusionActiveQuickMatchSession and PlayerMatchState's bot-request RPC both read
-    // this rather than searching the scene for it.
+    // client). Read by FusionActiveQuickMatchSession, PlayerLobbyVisibility and the
+    // bot-request RPC rather than searched for in the scene.
     public static MatchmakingSessionState Local;
 
     public override void Spawned()
@@ -31,34 +28,59 @@ public class MatchmakingSessionState : NetworkBehaviour
         Local = this;
     }
 
+    public override void Despawned(NetworkRunner runner, bool hasState)
+    {
+        if (Local == this) Local = null;
+    }
+
+    // Highest timer among everyone searching - the shared timer. Computed the same way on
+    // every peer from replicated state.
+    public static float SharedElapsedSeconds()
+    {
+        float highest = 0f;
+        var players = PlayerMatchState.Active;
+        for (int i = 0; i < players.Count; i++)
+        {
+            if (!players[i].IsSearching) continue;
+            float elapsed = players[i].SearchElapsedSeconds;
+            if (elapsed > highest) highest = elapsed;
+        }
+        return highest;
+    }
+
     public override void FixedUpdateNetwork()
     {
         if (!Object.HasStateAuthority || MatchStarting) return;
 
-        // Only players who've actually clicked Find Match count here - PlayerMatchState.Active
-        // also includes anyone just connected to the hub without searching, who shouldn't be
-        // swept into a match they didn't ask for.
-        var searching = PlayerMatchState.Active.Where(p => p.IsSearching).ToList();
-        int present = searching.Count;
+        var players = PlayerMatchState.Active;
+        int present = 0;
+        bool allReady = true;
 
-        if (present > 0 && SearchStarted == false)
+        for (int i = 0; i < players.Count; i++)
         {
-            SearchStarted = true;
-            SearchTimer = TickTimer.CreateFromSeconds(Runner, MatchmakingConfig.SearchDurationSeconds);
+            var player = players[i];
+            if (!player.IsSearching) continue;
+            present++;
+            if (!player.IsReady) allReady = false;
         }
 
-        // Full room starts immediately regardless of the timer - no press, no vote, no bots.
+        // Full room starts immediately - no vote, no bots.
         if (present >= MatchmakingConfig.MaxPlayers)
         {
             TriggerStart(0);
             return;
         }
 
-        // Unanimous-ready among whoever is actually searching, only once the shared bot option
-        // has unlocked (30s since the first searcher, not the full 120s display cap). A lone
-        // player never satisfies present > 1 - they go through
-        // PlayerMatchState.RPC_RequestStartWithBots instead.
-        if (present > 1 && BotOptionUnlocked && searching.All(p => p.IsReady))
+        // A lone searcher's ready flag means nothing (they start via the solo RPC); clear it so
+        // a partner who joins later isn't matched against a stale "ready".
+        if (present < 2)
+        {
+            for (int i = 0; i < players.Count; i++)
+                if (players[i].IsSearching) players[i].IsReady = false;
+            return;
+        }
+
+        if (allReady && SharedElapsedSeconds() >= MatchmakingConfig.BotOptionUnlockSeconds)
             TriggerStart(MatchmakingConfig.MaxPlayers - present);
     }
 
@@ -67,15 +89,16 @@ public class MatchmakingSessionState : NetworkBehaviour
     // RPC, which Fusion itself guarantees only runs on the state authority peer). Under
     // Host/Client that peer is always the host.
     //
-    // Releasing the movement gate happens here, host-side, for every car at once - not on each
-    // client for its own car. A client has Input Authority over its car but not State Authority,
-    // so it cannot write CanMove at all; the write has to originate here and replicate out.
+    // Releasing the movement gate happens here, host-side, for every searching car at once - a
+    // client has Input Authority over its car but not State Authority, so it cannot write
+    // CanMove itself. Cars that weren't searching stay parked.
     public void TriggerStart(int botCount)
     {
         BotCount = botCount;
         MatchStarting = true;
 
-        foreach (var player in PlayerMatchState.Active)
-            player.CanMove = true;
+        var players = PlayerMatchState.Active;
+        for (int i = 0; i < players.Count; i++)
+            if (players[i].IsSearching) players[i].CanMove = true;
     }
 }

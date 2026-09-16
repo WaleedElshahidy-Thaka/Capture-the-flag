@@ -26,12 +26,14 @@ for when that scope comes back, not part of this build.
 - `Game.unity`'s arena includes a ramp and a banked curved section (`GameSceneSetup.cs`'s
   `BuildRamp()`/`BuildCurve()`), for testing driving against something other than flat ground.
   Everything is built from primitives — no custom meshes.
-- **Matchmaking/** — Find Match flow: Quick Match via Photon Fusion (`GameMode.Shared`, no
-  visible host — see `Documentation/Networking_Progress.md`), ready-toggle + bot-fill start
-  logic (bot AI itself not built yet). Connecting happens automatically on scene start, not
-  behind a button — Find Match only flags this player as actively searching. No 3D lobby
-  placeholder visuals (deleted; see Networking_Progress.md's history section) — you see the
-  real `PlayerCar`s of everyone connected, from the moment they connect.
+- **Matchmaking/** — Find Match flow: Quick Match via Photon Fusion (`GameMode.AutoHostOrClient`,
+  host never surfaced to players — see `Documentation/Networking_Progress.md`): per-player search
+  timer → shared "player found" countdown → lobby with ready toggle → bot-fill start (bot AI
+  itself not built yet). Connects on scene start behind a black loading screen; Quick Match
+  flags you as searching; timer is shared (highest) once 2+ search together; 30 s unlocks the
+  bot option (solo: immediate; 2+: ready toggle). Other players' cars are hidden until you're
+  both searching (`PlayerLobbyVisibility`). Full spec in `Networking_Progress.md`. Live code in
+  `_DEV` no longer depends on anything in `Future_DEV`.
 - **Documentation/** — `Roadmap.md` (phases, rulings, what's next), `Vehicle_Model.md` (the
   drive model: architecture, why, current state, tuning) and `Networking_Progress.md` (topology,
   authority, replication). The GDD under `Assets/GDD/` is the source of truth above all three.

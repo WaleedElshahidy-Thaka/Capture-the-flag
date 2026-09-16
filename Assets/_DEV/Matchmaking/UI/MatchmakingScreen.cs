@@ -2,39 +2,40 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
-// Pure UI binding, no matchmaking logic of its own - mirrors the shelved WaitingRoomScreen's
-// role. One screen, panels toggled per MatchmakingPhase (Connecting / Idle / Searching /
-// WaitingSolo / WaitingReady / Starting).
+// Pure UI binding, no matchmaking logic of its own. A full-screen black Loading panel, then
+// compact side panels per MatchmakingPhase (Idle / Searching / WaitingSolo / WaitingReady /
+// Starting) kept off to the left so the robots stay in view.
 public class MatchmakingScreen : MonoBehaviour
 {
     [SerializeField] MatchmakingFlowController flowController;
 
+    [SerializeField] GameObject loadingPanel;   // full-screen black until the own car is seated
+    [SerializeField] TMP_Text loadingText;      // "Loading... {elapsed}s"
+
     [SerializeField] GameObject idlePanel;
-    [SerializeField] Button findMatchButton;
-    [SerializeField] TMP_Text loadingText; // "Loading Game... {elapsed}s" - shown while Connecting, disables findMatchButton
+    [SerializeField] Button quickMatchButton;
 
     [SerializeField] GameObject searchingPanel;
-    [SerializeField] TMP_Text searchingText; // "Finding player... {elapsed}s"
+    [SerializeField] TMP_Text searchingText;    // "Searching for players... {elapsed}s"
+    [SerializeField] TMP_Text playersFoundText; // "{n} players found" once there are 2+
 
     [SerializeField] GameObject soloBotPanel;
     [SerializeField] Button startWithBotsButton;
 
     [SerializeField] GameObject readyPanel;
     [SerializeField] Button readyToggleButton;
-    [SerializeField] TMP_Text readyToggleLabel;
+    [SerializeField] TMP_Text readyToggleLabel; // "Play with computer players" / "Unready"
 
     [SerializeField] GameObject startingPanel;
     [SerializeField] Button cancelButton;
 
-    // Purely local wall-clock reference for the Connecting message - "how long has this client
-    // been trying to connect" isn't networked state, so it doesn't belong on IActiveQuickMatchSession.
-    float awakeRealtime;
+    float loadStartRealtime;
 
     void Awake()
     {
-        awakeRealtime = Time.realtimeSinceStartup;
+        loadStartRealtime = Time.realtimeSinceStartup;
 
-        findMatchButton.onClick.AddListener(flowController.FindMatch);
+        quickMatchButton.onClick.AddListener(flowController.FindMatch);
         startWithBotsButton.onClick.AddListener(flowController.RequestStartWithBots);
         readyToggleButton.onClick.AddListener(flowController.ToggleReady);
         cancelButton.onClick.AddListener(flowController.Cancel);
@@ -55,35 +56,39 @@ public class MatchmakingScreen : MonoBehaviour
     {
         var phase = flowController.Phase;
 
-        if (phase == MatchmakingPhase.Connecting)
+        if (phase == MatchmakingPhase.Loading)
         {
-            loadingText.text = $"Loading Game... {Mathf.FloorToInt(Time.realtimeSinceStartup - awakeRealtime)}s";
+            loadingText.text = $"Loading... {Mathf.FloorToInt(Time.realtimeSinceStartup - loadStartRealtime)}s";
             return;
         }
 
         var session = flowController.Session;
         if (session == null) return;
 
-        if (phase == MatchmakingPhase.Searching || phase == MatchmakingPhase.WaitingSolo || phase == MatchmakingPhase.WaitingReady)
-            searchingText.text = $"Finding player... {Mathf.FloorToInt(session.ElapsedSeconds)}s";
+        bool searching = phase == MatchmakingPhase.Searching || phase == MatchmakingPhase.WaitingSolo || phase == MatchmakingPhase.WaitingReady;
+        if (!searching) return;
+
+        searchingText.text = $"Searching for players... {Mathf.FloorToInt(session.ElapsedSeconds)}s";
+
+        int found = session.SearchingCount;
+        bool showFound = found >= 2;
+        if (playersFoundText.gameObject.activeSelf != showFound) playersFoundText.gameObject.SetActive(showFound);
+        if (showFound) playersFoundText.text = $"{found} / {session.MaxPlayers} players found";
 
         if (phase == MatchmakingPhase.WaitingReady)
-            readyToggleLabel.text = session.IsReady ? "Unready" : "Don't wait, play with computer players";
+            readyToggleLabel.text = session.IsReady ? "Unready" : "Play with computer players";
     }
 
     void OnPhaseChanged(MatchmakingPhase phase)
     {
-        bool connecting = phase == MatchmakingPhase.Connecting;
-        bool waiting = !connecting && phase != MatchmakingPhase.Idle && phase != MatchmakingPhase.Starting;
+        bool searching = phase == MatchmakingPhase.Searching || phase == MatchmakingPhase.WaitingSolo || phase == MatchmakingPhase.WaitingReady;
 
-        idlePanel.SetActive(connecting || phase == MatchmakingPhase.Idle);
-        findMatchButton.interactable = phase == MatchmakingPhase.Idle;
-        loadingText.gameObject.SetActive(connecting);
-
-        searchingPanel.SetActive(waiting);
+        loadingPanel.SetActive(phase == MatchmakingPhase.Loading);
+        idlePanel.SetActive(phase == MatchmakingPhase.Idle);
+        searchingPanel.SetActive(searching);
         soloBotPanel.SetActive(phase == MatchmakingPhase.WaitingSolo);
         readyPanel.SetActive(phase == MatchmakingPhase.WaitingReady);
         startingPanel.SetActive(phase == MatchmakingPhase.Starting);
-        cancelButton.gameObject.SetActive(waiting);
+        cancelButton.gameObject.SetActive(searching);
     }
 }
