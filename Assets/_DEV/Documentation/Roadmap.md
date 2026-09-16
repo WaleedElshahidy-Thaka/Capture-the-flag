@@ -132,7 +132,11 @@ on a fast hand-over (now held ≥ 1.5 s).
 flaw in connect-on-open: sessions hold six *connected* players, so with more than six online,
 sessions filled by arrival order regardless of who was searching. Sessions now hold searchers
 only; the timer still starts at the click (local clock, then back-dated on the host so it never
-jumps); a local preview robot stands in for your car in the menu. Untested.
+jumps). Presentation with it: your robot alone, centred, same isometric angle (a local
+`LobbyPreviewCar` is "you" until the lobby — your own networked car stays hidden like the
+others'), "Player found" countdown, then a `ScreenFade` cut to the row shot.
+`MatchmakingFlowController.IsSoloView` is the one source for solo-vs-group. Untested — checklist
+in `Networking_Progress.md`.
 
 ## Phase 2 — Contact system ← the actual game, next up
 

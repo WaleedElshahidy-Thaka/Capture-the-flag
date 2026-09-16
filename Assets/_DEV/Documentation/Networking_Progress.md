@@ -230,18 +230,27 @@ reason `constraints = None` is set in code on every peer.
    countdown and READY clear work. The other-PC-hosts direction works once both builds are
    current (an older .exe on the other side has a different networked-state layout).
 
-**Untested since (2026-09-16, host migration):** everything in "Host migration" above, plus the
-session closing on start and the damping fix (`TopSpeed` is now actually reachable — expect to
-retune `Acceleration`/`CoastDrag`). Test plan, three PCs ideal, two workable:
-- Lobby migration: A hosts, B joins, both searching → A quits → B sees "reconnecting…", then is
-  back in the lobby alone, timer restarted, A's car gone after ~10 s.
-- Match migration: A hosts, A+B start (bots) → A quits → B: freeze → "reconnecting…" →
-  "Waiting for players…" → "Game resumes in 3, 2, 1" → B drives; A's car sits parked (bot).
-- With C as a client too: after A quits, both B and C come back, both see the countdown at the
-  same moment, both cars keep their names and positions.
-- Leaver bot: A hosts, B joins a match, B quits → B's car stays, parked, name on it.
-- Mid-match join: A starts with bots, B opens the game → B gets his own fresh session, never
-  sees A. Rebuild scene + prefab (`Game/Setup Game Scene`) and both builds first.
+8. Host migration, 2 and 3 peers (2026-09-16 test report, Editor + .exe + friend's .exe):
+   damping fix, session closed on start, leaver bot, lobby migration, match migration (freeze →
+   resume countdown → old host's car parked as a bot at its position), three-peer migration
+   (both survivors resume together), and a second migration in a row — all as designed. Two
+   leftovers fixed after: networked state read from `LateUpdate` on a car whose runner was gone
+   (`NetworkObject.IsValid` itself throws on a runner mid-shutdown — now a `HasState` flag set
+   in `Spawned`/`Despawned`), and the "reconnecting" notice flashing for a few frames on a fast
+   clean-quit hand-over (now held ≥ `ReconnectingNoticeSeconds`).
+
+**Untested since (2026-09-17, connect-on-Quick-Match + solo view):**
+- Open → your robot alone on the ground, centred, name above; no `[Fusion]` lines yet.
+- Quick Match → timer from 0 at once, no reset when the connection lands (~1 s later); the
+  view doesn't change; your networked car stays hidden.
+- Cancel during that first second → back to the menu. Fusion logs
+  `StartGame Failed … DisconnectByClientLogic` for the aborted connect — expected, not a fault.
+  Quick Match again straight after must still work (connect attempts are numbered so the
+  cancelled one's late result is dropped).
+- B searches → "Player found! 3…2…1" on both → fade to black → row shot with both cars and
+  names, timer jumps to the higher one. Cancel from the lobby → fade back to the solo shot.
+- One match migration (A quits) to confirm nothing regressed; "reconnecting…" now readable.
+- Known polish gap: the other cars appear a few frames before the fade reaches black.
 
 ## Open
 
