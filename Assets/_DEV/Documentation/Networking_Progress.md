@@ -44,27 +44,41 @@ is to survive it. See "Host migration" below.
 | Despawn on leave | Host only |
 | Client → host requests | `[Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]`. Routes correctly and needed no change across the topology switch |
 
-## Matchmaking flow (as of 2026-09-16)
+## Matchmaking flow (as of 2026-09-17)
 
 This is the owner-specified flow; treat it as the spec.
 
 ```
-open the game → Loading (black) — auto-connect, host spawns & seats your car
-→ Idle: arena, your robot, [Quick Match]. Nothing happens until pressed.
-→ Searching: "Searching for players… Ns" from 0 (your own), Cancel available
+open the game → Idle: your robot alone, centred, same isometric angle as the lobby
+  (a local preview - LobbyPreviewCar), [Quick Match]. Not connected.
+→ Quick Match: timer starts NOW from 0; connecting happens behind it (~1 s); host spawns &
+  seats your car; the searching request carries the seconds already elapsed so the networked
+  timer continues from the same number
+→ Searching: "Searching for players… Ns", Cancel available (Cancel = leave the session)
    ├─ nobody: at 30 s → WaitingSolo: [Start with computer players] → starts immediately
    └─ a second searcher appears → Found, on BOTH: "Player found! Joining lobby in 3…2…1"
         (you don't see each other yet; Cancel still works)
-        → lobby: you see each other + names; timer becomes SHARED = the highest one
+        → fade to black → the group lobby shot: everyone's cars + names; timer becomes
+          SHARED = the highest one
         at 30 s shared → WaitingReady: [Play with computer players] marks you READY
         (tag above your robot, button → [Unready]); all lobby players ready → start
         with bots; otherwise the timer keeps counting and searching continues.
    6 searching → immediate start, no bots.
 ```
 
-Mechanics: connection is automatic on scene start (`MatchmakingFlowController.Start`), the
-loading screen stays until `IsLocalPlayerSpawned`. Quick Match sends `RPC_SetSearching(true)`;
-the host stamps `SearchStartTick`. The moment two or more are searching, the host stamps
+Mechanics: connection happens on Quick Match (`MatchmakingFlowController.FindMatch`), not on
+scene start. **Why:** a session holds six connected players, searching or not — connecting on
+open filled sessions by arrival order, so with more than six people online two who wanted to
+play could sit in different sessions and never meet, and the host could be someone idling in
+the menu. Now a session holds searchers only. The timer runs off a local clock from the click;
+once `IsLocalPlayerSpawned`, `RPC_SetSearching(true, alreadyElapsedSeconds)` goes out and the
+host **back-dates** `SearchStartTick` by that much, so the networked timer picks up at the same
+number. Until you're in the lobby, the local `LobbyPreviewCar` (art + name, no networking) is
+"you" — your own networked car is hidden like everyone else's (`PlayerLobbyVisibility`), so
+connecting never visibly swaps one robot for another. `MatchmakingFlowController.IsSoloView`
+is the single answer to "solo or group" that `PlayerCamera` (solo shot vs row shot, with a
+`ScreenFade` between) and the preview both read. The moment two or more are searching, the
+host stamps
 `FoundTick` on every searcher who doesn't have one (`PlayerMatchState.MarkFound`); each peer
 counts `LobbyJoinCountdownSeconds` (3 s) down from it, and `InLobby` flips on the same tick
 everywhere — that's what makes both cars appear at once. A later joiner gets their own
@@ -72,9 +86,9 @@ countdown; the players already in the lobby just see them appear when it ends. I
 cancels mid-countdown the host aborts it (`AbortFoundCountdown`) and you drop back to plain
 searching. The shared timer is the highest among `InLobby` players
 (`MatchmakingSessionState.SharedElapsedSeconds`); before you're in the lobby you see your own.
-Cancel is `RPC_SetSearching(false)` — you stay connected and seated. The host decides the
-start in `MatchmakingSessionState.FixedUpdateNetwork`; the solo start goes through
-`RPC_RequestStartWithBots`. Values live in `MatchmakingConfig`.
+Cancel leaves the session (`Session.Leave()`, or `CancelQuickMatch` if still connecting) —
+back to Idle, offline. The host decides the start in `MatchmakingSessionState.FixedUpdateNetwork`;
+the solo start goes through `RPC_RequestStartWithBots`. Values live in `MatchmakingConfig`.
 
 **Visibility:** your own car is always visible; another player's car appears only once you are
 *both* `InLobby` (`PlayerLobbyVisibility` toggles `Visual`/`NameTag`). Someone sitting in the

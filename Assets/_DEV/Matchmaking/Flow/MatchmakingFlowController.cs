@@ -1,58 +1,152 @@
 using System;
 using UnityEngine;
 
-// Owns the Loading -> Idle -> Searching -> Found -> (WaitingSolo | WaitingReady) -> Starting
-// state machine, plus the Reconnecting -> Resuming detour a host migration takes from any of
-// them. Talks only to IQuickMatchService / IActiveQuickMatchSession - never references
-// Fusion types directly, so it drives identically whether MatchmakingServices is backed by
+// Owns the Idle -> Searching -> Found -> (WaitingSolo | WaitingReady) -> Starting state
+// machine, plus the Reconnecting -> Resuming detour a host migration takes from any of them.
+// Talks only to IQuickMatchService / IActiveQuickMatchSession - never references Fusion types
+// directly, so it drives identically whether MatchmakingServices is backed by
 // QuickMatchLocalService or QuickMatchFusionService. MatchmakingScreen binds to PhaseChanged
 // and reads Session for display; it has no logic of its own.
 //
+// Connection happens on Quick Match, not on scene start. A session holds only players who are
+// searching, so the host is always a searcher, a seventh searcher opens a new session, and
+// someone sitting in the menu costs nobody a seat. (An earlier version connected on scene
+// start; with sessions capped at six that filled sessions by arrival order, searching or not,
+// so two people who wanted to play could sit in different sessions and never meet.)
+//
+// The timer starts at the click, not at the connection. While connecting it runs off a local
+// clock; once the car is seated, the searching request carries the seconds already elapsed and
+// the host back-dates the networked timer to match - so the number never restarts or jumps.
+//
 // The flow, as specified:
-//   open the game  -> Loading (black) until connected and your own car is seated
-//   Idle           -> arena, your robot, Quick Match button; nothing happens until pressed
-//   Searching      -> own timer from 0
+//   Idle           -> arena, a local preview of your robot, Quick Match; not connected
+//   Searching      -> timer from 0 at the click; connecting behind it, then the real search
 //   Found          -> a second searcher exists: "Player found! Joining lobby in 3..2..1" on
 //                     both, then both see each other and the timer becomes the shared
 //                     (highest) one; back to Searching, now in the lobby
 //   WaitingSolo    -> 30s alone: "start with computer players" starts immediately
 //   WaitingReady   -> 30s shared, 2+: ready toggle; everyone ready -> start with bots,
 //                     otherwise keep searching (more players can still join)
+//   Cancel         -> leaves the session entirely; back to Idle, offline
 //   Reconnecting   -> the host dropped; "Host disconnected - reconnecting..." until we're in
 //                     the new session and our car is ours again
 //   Resuming       -> mid-match only: cars held still, "Game resumes in N" once the new host
 //                     has everyone back; then straight back to Starting
 public class MatchmakingFlowController : MonoBehaviour
 {
-    public MatchmakingPhase Phase { get; private set; } = MatchmakingPhase.Loading;
+    public MatchmakingPhase Phase { get; private set; } = MatchmakingPhase.Idle;
     public IActiveQuickMatchSession Session { get; private set; }
     public event Action<MatchmakingPhase> PhaseChanged;
 
+    // The one timer the UI shows. Local until the session has confirmed our search, then the
+    // session's (own, or shared once in the lobby) - continuous across the hand-off.
+    public float SearchElapsedSeconds =>
+        Session != null && Session.IsSearching
+            ? Session.ElapsedSeconds
+            : Mathf.Min(Time.realtimeSinceStartup - searchStartRealtime, MatchmakingConfig.SearchDurationSeconds);
+
+    // Solo view = your robot alone (the local preview), the state of things until a match is
+    // found. Read by PlayerCamera and LobbyPreviewCar so the two can't disagree.
+    public bool IsSoloView
+    {
+        get
+        {
+            bool lobbySide = Phase == MatchmakingPhase.Idle || Phase == MatchmakingPhase.Searching
+                             || Phase == MatchmakingPhase.Found || Phase == MatchmakingPhase.WaitingSolo
+                             || Phase == MatchmakingPhase.WaitingReady;
+            return lobbySide && (Session == null || !Session.InLobby);
+        }
+    }
+
+    float searchStartRealtime;
+    float reconnectingSince;
+    bool searchRequested;
+    // Cancel-then-Quick-Match inside the connect window leaves the first attempt's result
+    // arriving after the second has started; each result names its attempt so a stale one is
+    // dropped instead of being read as the current search failing.
+    int connectAttempt;
+
+    IQuickMatchService Service => MatchmakingServices.QuickMatch;
+
     void Start()
     {
-        var service = MatchmakingServices.QuickMatch;
-        service.HostLost += OnHostLost;
-        service.SessionRestored += OnSessionRestored;
-        service.SessionFailed += OnSessionFailed;
-        Connect();
+        Service.HostLost += OnHostLost;
+        Service.SessionRestored += OnSessionRestored;
+        Service.SessionFailed += OnSessionFailed;
+        SetPhase(MatchmakingPhase.Idle);
     }
 
     void OnDestroy()
     {
-        var service = MatchmakingServices.QuickMatch;
-        service.HostLost -= OnHostLost;
-        service.SessionRestored -= OnSessionRestored;
-        service.SessionFailed -= OnSessionFailed;
+        Service.HostLost -= OnHostLost;
+        Service.SessionRestored -= OnSessionRestored;
+        Service.SessionFailed -= OnSessionFailed;
     }
 
-    void Connect()
+    public void FindMatch()
     {
-        StartCoroutine(MatchmakingServices.QuickMatch.StartQuickMatch(MatchmakingConfig.GameId, OnConnected));
+        if (Phase != MatchmakingPhase.Idle) return;
+
+        searchStartRealtime = Time.realtimeSinceStartup;
+        searchRequested = false;
+        SetPhase(MatchmakingPhase.Searching);
+
+        int attempt = ++connectAttempt;
+        StartCoroutine(Service.StartQuickMatch(MatchmakingConfig.GameId, result => OnConnected(attempt, result)));
+    }
+
+    void OnConnected(int attempt, StartQuickMatchResult result)
+    {
+        // Cancelled while connecting, or superseded by a newer attempt: whatever came back is
+        // not wanted. (Fusion itself logs the aborted connect as "DisconnectByClientLogic" -
+        // that's the cancel, not a fault.)
+        if (attempt != connectAttempt || Phase != MatchmakingPhase.Searching)
+        {
+            if (result.Success) result.Session.Leave();
+            return;
+        }
+
+        if (!result.Success)
+        {
+            Debug.LogError($"[Matchmaking] {result.Error}");
+            SetPhase(MatchmakingPhase.Idle);
+            return;
+        }
+
+        Session = result.Session;
+        // The searching request goes out once our car is seated - see Update.
+    }
+
+    public void RequestStartWithBots() => Session?.RequestStartWithBots();
+    public void ToggleReady() => Session?.SetReady(!Session.IsReady);
+
+    // Stop searching = leave the session. Sessions hold searchers only, so there is nothing to
+    // stay connected for.
+    public void Cancel()
+    {
+        bool cancellable = Phase == MatchmakingPhase.Searching || Phase == MatchmakingPhase.Found
+                           || Phase == MatchmakingPhase.WaitingSolo || Phase == MatchmakingPhase.WaitingReady;
+        if (!cancellable) return;
+
+        if (Session != null)
+        {
+            Session.Leave();
+            Session = null;
+        }
+        else
+        {
+            Service.CancelQuickMatch();
+        }
+
+        searchRequested = false;
+        SetPhase(MatchmakingPhase.Idle);
     }
 
     void OnHostLost()
     {
         Session = null;
+        searchRequested = false;
+        reconnectingSince = Time.unscaledTime;
         SetPhase(MatchmakingPhase.Reconnecting);
     }
 
@@ -62,57 +156,24 @@ public class MatchmakingFlowController : MonoBehaviour
         Session = session;
     }
 
-    // Couldn't rejoin. Start over exactly as if the game had just been opened: a fresh session
-    // with whoever is out there.
+    // Couldn't rejoin. Back to the menu; the player presses Quick Match again when they like.
     void OnSessionFailed(string error)
     {
-        Debug.LogWarning($"[Matchmaking] {error} - reconnecting to a new session.");
+        Debug.LogWarning($"[Matchmaking] {error}");
         Session = null;
-        SetPhase(MatchmakingPhase.Loading);
-        Connect();
-    }
-
-    void OnConnected(StartQuickMatchResult result)
-    {
-        if (!result.Success)
-        {
-            Debug.LogError($"[Matchmaking] {result.Error}");
-            return;
-        }
-
-        Session = result.Session;
-        // Stays in Loading until the car is actually seated - see Update.
-    }
-
-    public void FindMatch()
-    {
-        if (Session == null || Phase != MatchmakingPhase.Idle) return;
-
-        Session.SetSearching(true);
-        SetPhase(MatchmakingPhase.Searching);
-    }
-
-    public void RequestStartWithBots() => Session?.RequestStartWithBots();
-    public void ToggleReady() => Session?.SetReady(!Session.IsReady);
-
-    // Stop searching. You stay connected and in your seat.
-    public void Cancel()
-    {
-        bool cancellable = Phase == MatchmakingPhase.Searching || Phase == MatchmakingPhase.Found
-                           || Phase == MatchmakingPhase.WaitingSolo || Phase == MatchmakingPhase.WaitingReady;
-        if (Session == null || !cancellable) return;
-
-        Session.SetSearching(false);
+        searchRequested = false;
         SetPhase(MatchmakingPhase.Idle);
     }
 
     void Update()
     {
+        // Offline (Idle) or still connecting (Searching on the local clock): nothing to drive.
         if (Session == null) return;
 
-        if (Phase == MatchmakingPhase.Loading || Phase == MatchmakingPhase.Reconnecting)
+        if (Phase == MatchmakingPhase.Reconnecting)
         {
-            if (Session.IsLocalPlayerSpawned) SetPhase(PhaseFromSessionState());
+            bool noticeShown = Time.unscaledTime - reconnectingSince >= MatchmakingConfig.ReconnectingNoticeSeconds;
+            if (Session.IsLocalPlayerSpawned && noticeShown) SetPhase(PhaseFromSessionState());
             return;
         }
 
@@ -125,6 +186,18 @@ public class MatchmakingFlowController : MonoBehaviour
         if (Phase == MatchmakingPhase.Resuming) SetPhase(PhaseFromSessionState());
 
         if (Phase == MatchmakingPhase.Idle || Phase == MatchmakingPhase.Starting) return;
+
+        // Connected but the host doesn't know we're searching yet: tell it, once our car is
+        // seated, carrying the time already on the clock. Until it echoes back, hold here.
+        if (!Session.IsSearching)
+        {
+            if (Session.IsLocalPlayerSpawned && !searchRequested)
+            {
+                searchRequested = true;
+                Session.SetSearching(true, Time.realtimeSinceStartup - searchStartRealtime);
+            }
+            return;
+        }
 
         if (Session.MatchStarting)
         {
@@ -165,13 +238,14 @@ public class MatchmakingFlowController : MonoBehaviour
         }
     }
 
-    // Where a freshly (re)joined peer belongs, read straight from replicated state - the same
-    // answer whether this is the first connect or the far side of a host migration. Found and
-    // the Waiting phases are derived from Searching by the normal rules on the next Update.
+    // Where a rejoined peer belongs after a host migration, read from replicated state. Anyone
+    // in a session is a searcher, so it's the match if one is on, else Searching - and if the
+    // copied state somehow lost the searching flag, Update re-requests it with the local clock.
     MatchmakingPhase PhaseFromSessionState()
     {
         if (Session.MatchStarting) return MatchmakingPhase.Starting;
-        return Session.IsSearching ? MatchmakingPhase.Searching : MatchmakingPhase.Idle;
+        if (!Session.IsSearching) searchRequested = false;
+        return MatchmakingPhase.Searching;
     }
 
     void SetPhase(MatchmakingPhase next)

@@ -58,8 +58,10 @@ public static class GameSceneSetup
         BuildScreen(canvas, out var refs);
 
         var flowControllerGO = GetOrCreatePlain("MatchmakingFlowController", null, typeof(MatchmakingFlowController));
+        var flowController = flowControllerGO.GetComponent<MatchmakingFlowController>();
 
-        WireScreen(canvas, refs, flowControllerGO.GetComponent<MatchmakingFlowController>());
+        WireScreen(canvas, refs, flowController);
+        WireLobbyPresentation(flowController, refs.previewCar, refs.fade);
 
         var activeScene = SceneManager.GetActiveScene();
         EditorSceneManager.MarkSceneDirty(activeScene);
@@ -521,15 +523,16 @@ public static class GameSceneSetup
 
     class ScreenRefs
     {
-        public GameObject loadingPanel, idlePanel, searchingPanel, foundPanel, soloBotPanel, readyPanel, reconnectingPanel, resumingPanel;
+        public GameObject idlePanel, searchingPanel, foundPanel, soloBotPanel, readyPanel, reconnectingPanel, resumingPanel, previewCar;
+        public ScreenFade fade;
         public Button quickMatchButton, startWithBotsButton, readyToggleButton, cancelButton;
-        public TMP_Text loadingText, searchingText, playersFoundText, foundText, readyToggleLabel, resumingText;
+        public TMP_Text searchingText, playersFoundText, foundText, readyToggleLabel, resumingText;
     }
 
-    // A full-screen black Loading panel, then compact translucent side panels down the left
-    // edge - never an overlay over the arena, so the robots stay in view. Each phase's panel is
-    // its own small box; Cancel sits in a separate box below them. Two more full-screen panels
-    // (translucent, the arena still visible behind) cover a host migration.
+    // Compact translucent side panels down the left edge - never an overlay over the arena, so
+    // the robots stay in view. Each phase's panel is its own small box; Cancel sits in a
+    // separate box below them. Two full-screen panels (translucent, the arena still visible
+    // behind) cover a host migration.
     static void BuildScreen(RectTransform canvas, out ScreenRefs refs)
     {
         refs = new ScreenRefs();
@@ -538,8 +541,7 @@ public static class GameSceneSetup
         Stretch(root);
         RemoveLegacyChildren(root);
 
-        var loading = FullScreenPanel("LoadingPanel", root, Color.black, "Loading... 0s", out refs.loadingText);
-        refs.loadingPanel = loading.gameObject;
+        refs.previewCar = BuildPreviewCar();
 
         var idle = SidePanel("IdlePanel", root);
         refs.quickMatchButton = Btn("QuickMatchButton", idle, "Quick Match");
@@ -573,10 +575,68 @@ public static class GameSceneSetup
         var resuming = FullScreenPanel("ResumingPanel", root, dim, "Game resumes in 3", out refs.resumingText);
         refs.resumingPanel = resuming.gameObject;
 
-        // The full-screen panels draw over the side panels; Loading over everything.
+        // The full-screen panels draw over the side panels; the fade over everything.
         reconnecting.SetAsLastSibling();
         resuming.SetAsLastSibling();
-        loading.SetAsLastSibling();
+
+        var fadeRt = GetOrCreateUI("ScreenFade", root, typeof(Image), typeof(ScreenFade));
+        Stretch(fadeRt);
+        fadeRt.GetComponent<Image>().color = new Color(0f, 0f, 0f, 0f);
+        fadeRt.SetAsLastSibling();
+        refs.fade = fadeRt.GetComponent<ScreenFade>();
+    }
+
+    // The camera and the preview robot both read "solo or group" from the flow controller.
+    static void WireLobbyPresentation(MatchmakingFlowController flowController, GameObject previewCar, ScreenFade fade)
+    {
+        var preview = previewCar.GetComponent<LobbyPreviewCar>();
+        SetField(preview, "flow", flowController);
+
+        var cameraGO = GameObject.Find("Main Camera");
+        if (cameraGO == null || !cameraGO.TryGetComponent(out PlayerCamera playerCamera)) return;
+        SetField(playerCamera, "flow", flowController);
+        SetField(playerCamera, "previewCar", previewCar.transform);
+        SetField(playerCamera, "fade", fade);
+    }
+
+    // The menu's local stand-in for your car: the robot art in seat 0 with your name over it,
+    // no networking. See LobbyPreviewCar.
+    static GameObject BuildPreviewCar()
+    {
+        var existing = GameObject.Find("LobbyPreviewCar");
+        if (existing != null) UnityEngine.Object.DestroyImmediate(existing);
+
+        var go = new GameObject("LobbyPreviewCar", typeof(LobbyPreviewCar));
+        Undo.RegisterCreatedObjectUndo(go, UndoLabel);
+        go.transform.position = LobbyLayout.SlotPosition(0);
+        go.transform.rotation = LobbyLayout.SlotRotation;
+
+        var playerArt = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/_DEV/Game/Art/Bolt/PlayerRobot.prefab");
+        GameObject visual = playerArt != null
+            ? (GameObject)PrefabUtility.InstantiatePrefab(playerArt)
+            : GameObject.CreatePrimitive(PrimitiveType.Capsule);
+        visual.name = "Visual";
+        visual.transform.SetParent(go.transform, false);
+        // The art prefab's root carries its own offset; zero it, exactly as the car builder does,
+        // or the robot stands metres away from the root the camera and name tag are centred on.
+        visual.transform.localPosition = Vector3.zero;
+        visual.transform.localRotation = Quaternion.identity;
+        foreach (var collider in visual.GetComponentsInChildren<Collider>())
+            UnityEngine.Object.DestroyImmediate(collider);
+
+        var tagGO = new GameObject("NameTag", typeof(RectTransform), typeof(Canvas));
+        tagGO.transform.SetParent(go.transform, false);
+        tagGO.transform.localPosition = new Vector3(0f, 1.6f, 0f);
+        tagGO.transform.localScale = Vector3.one * 0.01f;
+        tagGO.GetComponent<Canvas>().renderMode = RenderMode.WorldSpace;
+        tagGO.GetComponent<RectTransform>().sizeDelta = new Vector2(300f, 110f);
+        var nameLabel = WorldLabel("Name", tagGO.transform, "Player", 36, Color.white, new Vector2(0f, 20f), 60f);
+
+        var preview = go.GetComponent<LobbyPreviewCar>();
+        SetField(preview, "visual", visual);
+        SetField(preview, "nameTag", tagGO);
+        SetField(preview, "nameLabel", nameLabel);
+        return go;
     }
 
     static RectTransform FullScreenPanel(string name, Transform parent, Color color, string text, out TMP_Text label)
@@ -605,7 +665,7 @@ public static class GameSceneSetup
             if (content != null) UnityEngine.Object.DestroyImmediate(content.gameObject);
         }
 
-        foreach (var path in new[] { "SearchingPanel/CancelButton", "IdlePanel/LoadingText", "IdlePanel/FindMatchButton", "LobbyPanel", "StartingPanel", "LoadingPanel/LoadingText" })
+        foreach (var path in new[] { "SearchingPanel/CancelButton", "IdlePanel/LoadingText", "IdlePanel/FindMatchButton", "LobbyPanel", "StartingPanel", "LoadingPanel" })
         {
             var legacy = root.Find(path);
             if (legacy != null) UnityEngine.Object.DestroyImmediate(legacy.gameObject);
@@ -617,8 +677,6 @@ public static class GameSceneSetup
         var screen = canvas.Find("MatchmakingScreen").GetComponent<MatchmakingScreen>();
 
         SetField(screen, "flowController", flowController);
-        SetField(screen, "loadingPanel", refs.loadingPanel);
-        SetField(screen, "loadingText", refs.loadingText);
         SetField(screen, "idlePanel", refs.idlePanel);
         SetField(screen, "quickMatchButton", refs.quickMatchButton);
         SetField(screen, "searchingPanel", refs.searchingPanel);

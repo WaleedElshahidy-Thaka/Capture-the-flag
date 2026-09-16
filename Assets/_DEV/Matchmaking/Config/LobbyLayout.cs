@@ -45,4 +45,19 @@ public static class LobbyLayout
     }
 
     public static Quaternion CameraRotation => Quaternion.LookRotation(RowCenter + Vector3.up * 0.5f - CameraPosition, Vector3.up);
+
+    // The solo shot (before a match is found): the same yaw and the same feel as the row shot,
+    // pulled in on one robot instead of six, so the fade to the lobby reads as "the others
+    // appeared", not as a different camera.
+    const float SoloCameraDistance = 5f;
+    const float SoloCameraHeight = 3.2f;
+
+    public static Vector3 SoloCameraPosition(Vector3 focus)
+    {
+        Vector3 back = Quaternion.Euler(0f, CameraYawDegrees, 0f) * Vector3.back * SoloCameraDistance;
+        return focus + back + Vector3.up * SoloCameraHeight;
+    }
+
+    public static Quaternion SoloCameraRotation(Vector3 focus) =>
+        Quaternion.LookRotation(focus + Vector3.up * 0.5f - SoloCameraPosition(focus), Vector3.up);
 }

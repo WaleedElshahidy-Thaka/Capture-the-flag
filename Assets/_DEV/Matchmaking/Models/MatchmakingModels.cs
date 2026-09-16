@@ -12,9 +12,8 @@ public class StartQuickMatchResult
 // Drives which panel MatchmakingScreen shows. Owned by MatchmakingFlowController.
 public enum MatchmakingPhase
 {
-    Loading,       // black screen: connecting, own car not yet spawned and seated
-    Idle,          // in the arena, own robot visible, Quick Match button - nothing happens until pressed
-    Searching,     // own timer counting up (alone), or the shared timer once in the lobby
+    Idle,          // offline: the arena, a local preview of your robot, Quick Match
+    Searching,     // timer from the click: connecting behind it, then own timer, then the shared one in the lobby
     Found,         // "Player found! Joining lobby in N" - the 3 s countdown before the lobby
     WaitingSolo,   // timer >= 30s, still alone -> "start with computer players" (immediate)
     WaitingReady,  // shared timer >= 30s, 2+ searching -> ready toggle; all ready -> start with bots

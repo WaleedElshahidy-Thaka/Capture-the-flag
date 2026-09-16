@@ -46,7 +46,7 @@ public class FusionActiveQuickMatchSession : IActiveQuickMatchSession
     public bool IsLocalPlayerSpawned => ownState != null;
 
     public bool IsSearching => ownState != null && ownState.IsSearching;
-    public void SetSearching(bool searching) => ownState?.RPC_SetSearching(searching);
+    public void SetSearching(bool searching, float alreadyElapsedSeconds = 0f) => ownState?.RPC_SetSearching(searching, alreadyElapsedSeconds);
 
     public float LobbyJoinSecondsRemaining => ownState != null ? ownState.LobbyJoinSecondsRemaining : 0f;
     public bool InLobby => ownState != null && ownState.InLobby;

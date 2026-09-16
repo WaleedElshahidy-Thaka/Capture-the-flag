@@ -81,12 +81,13 @@ public class QuickMatchFusionService : IQuickMatchService
         var startTask = runner.StartGame(args);
         while (!startTask.IsCompleted) yield return null;
 
+        bool cancelled = connectingRunner != runner;
         connectingRunner = null;
 
-        if (!startTask.Result.Ok)
+        if (!startTask.Result.Ok || cancelled || !runner.IsRunning)
         {
-            UnityEngine.Object.Destroy(runner.gameObject);
-            onResult?.Invoke(StartQuickMatchResult.Fail($"Could not find or open a match: {startTask.Result.ShutdownReason}"));
+            if (runner != null) UnityEngine.Object.Destroy(runner.gameObject);
+            onResult?.Invoke(StartQuickMatchResult.Fail(cancelled ? "Cancelled." : $"Could not find or open a match: {startTask.Result.ShutdownReason}"));
             yield break;
         }
 

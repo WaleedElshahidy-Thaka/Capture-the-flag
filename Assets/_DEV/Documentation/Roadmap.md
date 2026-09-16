@@ -121,9 +121,18 @@ Built now rather than after Phase 5 on purpose: the only state to hand over toda
 few flags; every feature from here on (Crown, scores, round timer) is written migration-aware
 instead of retrofitted.
 
-**Not yet verified:** any of it — see the test plan in `Networking_Progress.md`. Also still
-unverified: the suspension/gravity change (parked car stays parked on the ramp and curve; ramp
-launch and landing feel right).
+**Verified 2026-09-16 (2 and 3 peers):** lobby and mid-match migration, shared resume countdown,
+old host's car parked as a bot, leaver bot, mid-match join refused, second migration in a row.
+Two leftovers fixed after: reads of networked state from `LateUpdate` on a car whose runner was
+already gone (now gated by a `HasState` flag set in `Spawned`/`Despawned` — `NetworkObject.IsValid`
+itself throws on a runner mid-shutdown), and the "reconnecting" notice flashing for a few frames
+on a fast hand-over (now held ≥ 1.5 s).
+
+**2026-09-17 — connect on Quick Match, not on open.** The three-peer test surfaced the scaling
+flaw in connect-on-open: sessions hold six *connected* players, so with more than six online,
+sessions filled by arrival order regardless of who was searching. Sessions now hold searchers
+only; the timer still starts at the click (local clock, then back-dated on the host so it never
+jumps); a local preview robot stands in for your car in the menu. Untested.
 
 ## Phase 2 — Contact system ← the actual game, next up
 

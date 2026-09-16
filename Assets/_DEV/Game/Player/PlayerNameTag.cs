@@ -29,14 +29,19 @@ public class PlayerNameTag : MonoBehaviour
             readyLabel.gameObject.SetActive(ready);
         }
 
+        FaceCamera(transform);
+    }
+
+    // Face the camera, upright - rotate about world up only so the tag never tilts with the
+    // car conforming to a slope. Shared with LobbyPreviewCar's tag.
+    public static void FaceCamera(Transform tag)
+    {
         var cam = Camera.main;
         if (cam == null) return;
 
-        // Face the camera, upright - rotate about world up only so the tag never tilts with the
-        // car conforming to a slope.
-        Vector3 toCamera = transform.position - cam.transform.position;
+        Vector3 toCamera = tag.position - cam.transform.position;
         toCamera.y = 0f;
         if (toCamera.sqrMagnitude > 0.0001f)
-            transform.rotation = Quaternion.LookRotation(toCamera, Vector3.up);
+            tag.rotation = Quaternion.LookRotation(toCamera, Vector3.up);
     }
 }

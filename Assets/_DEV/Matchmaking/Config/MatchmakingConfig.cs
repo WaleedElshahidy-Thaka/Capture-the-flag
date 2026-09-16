@@ -29,6 +29,10 @@ public static class MatchmakingConfig
     // (Photon's host-loss detection, election, reconnects), which is why the UI shows no number
     // for that part.
     public const float ResumeCountdownSeconds = 3f;
+    // A clean host quit is detected almost instantly and a lobby hand-over completes in well
+    // under a second, which showed the "reconnecting" notice for a few frames - a flicker. It
+    // stays up at least this long so it reads as a message.
+    public const float ReconnectingNoticeSeconds = 1.5f;
     // (How often the host pushes a migration snapshot lives in NetworkProjectConfig >
     // HostMigration > UpdateDelay - play rewinds to the last snapshot on a hand-over.)
 

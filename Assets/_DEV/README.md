@@ -34,8 +34,11 @@ for when that scope comes back, not part of this build.
 - **Matchmaking/** — Find Match flow: Quick Match via Photon Fusion (`GameMode.AutoHostOrClient`,
   host never surfaced to players — see `Documentation/Networking_Progress.md`): per-player search
   timer → shared "player found" countdown → lobby with ready toggle → bot-fill start (bot AI
-  itself not built yet). Connects on scene start behind a black loading screen; Quick Match
-  flags you as searching; a second searcher triggers "Player found! Joining lobby in 3" on both,
+  itself not built yet). Connects on Quick Match (sessions hold searchers only); the timer
+  starts at the click and continues through the connection without a jump; until a match is
+  found a local `Game/Arena/LobbyPreviewCar` is your robot, framed alone by `PlayerCamera`'s
+  solo shot; a second searcher triggers "Player found! Joining lobby in 3" on both, then a
+  `UI/ScreenFade` cut to the group lobby shot,
   then you see each other and the timer is shared (highest); 30 s unlocks the bot option (solo:
   immediate; 2+: ready toggle). Other players' cars are hidden until you're both in the lobby
   (`PlayerLobbyVisibility`). Full spec in `Networking_Progress.md`. **Host migration** lives

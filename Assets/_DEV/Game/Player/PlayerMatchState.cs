@@ -69,11 +69,12 @@ public class PlayerMatchState : NetworkBehaviour, IAfterHostMigration
     // A car with no player behind it. The host feeds it BotDriver input.
     public bool IsBot => Object.InputAuthority == PlayerRef.None;
 
-    // Networked properties are only readable while the object is spawned. Unity-driven
+    // Networked properties are only readable between Spawned and Despawned. Unity-driven
     // callbacks (LateUpdate) can run on a car whose runner has already freed its state - a host
     // migration shuts the old runner down a frame before the GameObjects go - so anything that
-    // reads state from outside Fusion's own callbacks checks this first.
-    public bool HasState => Object != null && Object.IsValid;
+    // reads state from outside Fusion's own callbacks checks this first. Tracked here rather
+    // than via NetworkObject.IsValid: that asks the runner, and a runner mid-shutdown throws.
+    public bool HasState { get; private set; }
 
     // Every currently-spawned instance, on every peer. Single source of truth
     // MatchmakingSessionState reads from to decide when a match should start.
@@ -90,6 +91,7 @@ public class PlayerMatchState : NetworkBehaviour, IAfterHostMigration
 
     public override void Spawned()
     {
+        HasState = true;
         Active.Add(this);
         RefreshOwnership();
         RosterChanged?.Invoke();
@@ -97,6 +99,7 @@ public class PlayerMatchState : NetworkBehaviour, IAfterHostMigration
 
     public override void Despawned(NetworkRunner runner, bool hasState)
     {
+        HasState = false;
         Active.Remove(this);
         if (Local == this) Local = null;
         RosterChanged?.Invoke();
@@ -134,10 +137,15 @@ public class PlayerMatchState : NetworkBehaviour, IAfterHostMigration
 
     // A client can only request its own flag change - the write itself always happens on the
     // State Authority (the host), then replicates back out to everyone automatically.
+    //
+    // The timer started at the Quick Match click, before the connection existed; the client
+    // reports how long it has already been searching and the start tick is back-dated by that
+    // much, so the networked timer picks up exactly where the local one was - no restart.
     [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
-    public void RPC_SetSearching(NetworkBool searching)
+    public void RPC_SetSearching(NetworkBool searching, float alreadyElapsedSeconds)
     {
-        if (searching && !IsSearching) SearchStartTick = Runner.Tick;
+        if (searching && !IsSearching)
+            SearchStartTick = Runner.Tick - Mathf.RoundToInt(Mathf.Max(0f, alreadyElapsedSeconds) * Runner.TickRate);
         IsSearching = searching;
         if (!searching)
         {

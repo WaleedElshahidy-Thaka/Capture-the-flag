@@ -1,7 +1,9 @@
 using UnityEngine;
 
-// Local-only, not networked. Two views, picked by whether the match has started:
+// Local-only, not networked. Three views:
 //
+//   Solo   - before a match is found: the same isometric angle as the lobby shot, framed on
+//            your own robot alone (the LobbyPreviewCar).
 //   Lobby  - one fixed isometric shot of the whole seat row, identical for every player
 //            (LobbyLayout.CameraPosition/Rotation) - not relative to your own car.
 //   Follow - third-person chase. Follows velocity direction rather than the car's facing (keeps
@@ -9,8 +11,10 @@ using UnityEngine;
 //            unconditionally excluded from that so the camera never swings in front of the car
 //            while backing up.
 //
-// The switch is driven by PlayerMatchState.CanMove, which the host releases on match start -
-// no explicit "start the game camera" call needed anywhere.
+// Solo <-> Lobby goes through a fade to black (ScreenFade), which also hides the swap between
+// the preview robot and the networked cars underneath it. The switch to Follow is driven by
+// PlayerMatchState.CanMove, which the host releases on match start - no explicit "start the
+// game camera" call needed anywhere.
 //
 // Position and facing come from the car's View child - the transform NetworkRigidbody
 // interpolates between ticks - not from the physics root, which only moves at tick rate and
@@ -18,6 +22,12 @@ using UnityEngine;
 // Rigidbody, since the View has none.
 public class PlayerCamera : MonoBehaviour
 {
+    enum Mode { Solo, Lobby, Follow, Hold }
+
+    [SerializeField] MatchmakingFlowController flow;
+    [SerializeField] Transform previewCar;
+    [SerializeField] ScreenFade fade;
+
     [SerializeField] Rigidbody target;
     [SerializeField] Transform view;
     [SerializeField] PlayerMatchState matchState;
@@ -31,9 +41,11 @@ public class PlayerCamera : MonoBehaviour
 
     Vector3 followDirection = Vector3.forward;
     bool initialized;
+    Mode mode = Mode.Solo;
+    bool fading;
 
-    // Set at runtime by PlayerMovement.Spawned() - the car it should follow no longer exists
-    // at edit time now that each player's car is spawned dynamically, not scene-placed.
+    // Set at runtime by PlayerMovement - the car it should follow no longer exists at edit
+    // time now that each player's car is spawned dynamically, not scene-placed.
     public void SetTarget(Rigidbody newTarget, Transform newView, PlayerMatchState newMatchState)
     {
         target = newTarget;
@@ -43,30 +55,58 @@ public class PlayerCamera : MonoBehaviour
     }
 
     bool InMatch => target != null && matchState != null && matchState.CanMove;
-    bool wasInMatch;
 
-    // The lobby shot needs no target at all, so it shows from the first frame - before this
-    // client's own car has even spawned - and is the same picture on every peer. Losing the
-    // car mid-match (host migration destroys every object, then rebuilds them) holds the last
-    // view rather than cutting to the lobby shot behind the "reconnecting" overlay.
     void LateUpdate()
     {
-        if (InMatch)
+        Mode desired = DesiredMode();
+
+        // The only cut that fades is between the two lobby-side views; losing or gaining the
+        // car (match start, host migration) switches at once.
+        bool lobbySideCut = (mode == Mode.Solo && desired == Mode.Lobby) || (mode == Mode.Lobby && desired == Mode.Solo);
+        if (desired != mode)
         {
-            FollowView();
-            wasInMatch = true;
+            if (lobbySideCut && fade != null)
+            {
+                if (!fading)
+                {
+                    fading = true;
+                    fade.Run(atBlack: () => mode = desired, onDone: () => fading = false);
+                }
+            }
+            else
+            {
+                mode = desired;
+            }
         }
-        else if (target == null && wasInMatch)
+
+        switch (mode)
         {
-            // hold
-        }
-        else
-        {
-            LobbyView();
-            wasInMatch = false;
+            case Mode.Follow: FollowView(); break;
+            case Mode.Solo: SoloView(); break;
+            case Mode.Lobby: LobbyView(); break;
+            case Mode.Hold: break; // the car vanished mid-match (host migration) - keep the last view
         }
     }
 
+    Mode DesiredMode()
+    {
+        if (InMatch) return Mode.Follow;
+        if (target == null && mode == Mode.Follow) return Mode.Hold;
+        if (mode == Mode.Hold && target == null) return Mode.Hold;
+        bool solo = flow == null || flow.IsSoloView;
+        return solo ? Mode.Solo : Mode.Lobby;
+    }
+
+    void SoloView()
+    {
+        Vector3 focus = previewCar != null ? previewCar.position : LobbyLayout.SlotPosition(0);
+        transform.position = LobbyLayout.SoloCameraPosition(focus);
+        transform.rotation = LobbyLayout.SoloCameraRotation(focus);
+        initialized = false;
+    }
+
+    // The lobby shot needs no target at all, so it shows from the first frame and is the same
+    // picture on every peer.
     void LobbyView()
     {
         transform.position = LobbyLayout.CameraPosition;

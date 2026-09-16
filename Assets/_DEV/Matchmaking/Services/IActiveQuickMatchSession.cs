@@ -9,12 +9,14 @@ public interface IActiveQuickMatchSession
     int MaxPlayers { get; }
     bool IsHost { get; }
 
-    // True once this client's own car has been spawned and seated - the loading screen
-    // stays up until then.
+    // True once this client's own car has been spawned and seated - the searching request
+    // waits for it (it's an RPC from the car).
     bool IsLocalPlayerSpawned { get; }
 
+    // alreadyElapsedSeconds: how long the local timer has been running before the session knew
+    // - the click happens before the connection - so the session's timer starts back-dated.
     bool IsSearching { get; }
-    void SetSearching(bool searching);
+    void SetSearching(bool searching, float alreadyElapsedSeconds = 0f);
 
     // The moment a second searcher appears, the authority pairs everyone searching: each counts
     // the same LobbyJoinCountdownSeconds down ("Player found! Joining lobby in N") and enters
@@ -26,8 +28,8 @@ public interface IActiveQuickMatchSession
     // shared. This is what counts toward a match.
     int LobbyCount { get; }
 
-    // The displayed timer. Before you're in the lobby it's your own (from your Quick Match
-    // press). In the lobby it's the highest of everyone there - the shared timer.
+    // The session's timer. Before you're in the lobby it's your own (back-dated to your Quick
+    // Match press). In the lobby it's the highest of everyone there - the shared timer.
     float ElapsedSeconds { get; }
 
     // True once ElapsedSeconds passes MatchmakingConfig.BotOptionUnlockSeconds.

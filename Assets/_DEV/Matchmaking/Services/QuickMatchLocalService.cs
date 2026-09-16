@@ -39,9 +39,9 @@ public class QuickMatchLocalService : IQuickMatchService
         public float LobbyJoinSecondsRemaining => 0f; // nobody to be found
         public bool InLobby => false;
         public int LobbyCount => 0;
-        public void SetSearching(bool searching)
+        public void SetSearching(bool searching, float alreadyElapsedSeconds = 0f)
         {
-            if (searching && !IsSearching) searchStartRealtime = Time.realtimeSinceStartup;
+            if (searching && !IsSearching) searchStartRealtime = Time.realtimeSinceStartup - alreadyElapsedSeconds;
             IsSearching = searching;
             if (!searching) IsReady = false;
             Changed?.Invoke();
