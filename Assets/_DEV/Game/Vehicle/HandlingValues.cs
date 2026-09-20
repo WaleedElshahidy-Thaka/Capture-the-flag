@@ -66,6 +66,30 @@ public class HandlingValues
     [Tooltip("Tilt beyond this angle from the ground normal means drive input does nothing - a car on its side can't drive along the floor.")]
     public float MaxDriveAngle = 50f;
 
+    [Header("Walls (doc 05 - scrape below the angle, impact above; every outcome keeps moving)")]
+    [Tooltip("Incidence angle (velocity against the wall surface) that separates a scrape from an impact. Doc 05: deliberately forgiving to start; tighten only if playtesters get away with approaches that should cost them.")]
+    public float WallImpactAngle = 45f;
+    [Tooltip("Speed fraction lost by a scrape at the impact angle; scales down linearly to nothing at a parallel kiss.")]
+    public float WallScrapeCost = 0.25f;
+    [Tooltip("Speed fraction lost by an impact.")]
+    public float WallImpactCost = 0.55f;
+    [Tooltip("Push-off away from the wall on an impact, m/s. Small on purpose - never a bounce that returns real speed.")]
+    public float WallReboundSpeed = 2f;
+    [Tooltip("An impact arriving faster than this qualifies for spin-out (the state itself is Phase 2d).")]
+    public float WallSpinoutSpeed = 16f;
+    [Tooltip("Floor on speed after any wall contact, m/s - a dead stop is designed out. Never above the speed the chassis arrived with.")]
+    public float MinExitSpeed = 4f;
+
+    [Header("Recovery (doc 05 spin-out - the only recovery state)")]
+    [Tooltip("How long a spin-out lasts, in ticks. Doc 05: 45 (~0.75 s) for Arena - in a hit-heavy mode a long recovery means watching, not playing. 'The most punishing number in the set.'")]
+    public int SpinoutTicks = 45;
+    [Tooltip("Steering authority while spinning. Never zero - doc 05 Design Goal: no contact removes control.")]
+    public float SpinoutSteerMultiplier = 0.35f;
+    [Tooltip("Throttle authority while spinning.")]
+    public float SpinoutThrottleMultiplier = 0.5f;
+    [Tooltip("Ticks after a spin-out ends during which the chassis can't be spun again - long enough to stop an instant re-spin by the same aggressor, short enough not to be a shield.")]
+    public int ContactImmunityTicks = 45;
+
     [Header("Weight (doc 03 keeps these independent on purpose)")]
     [Tooltip("Momentum transfer during contact only. Consumed by Collision & Recovery (doc 05), not used here yet.")]
     public float Mass = 1f;

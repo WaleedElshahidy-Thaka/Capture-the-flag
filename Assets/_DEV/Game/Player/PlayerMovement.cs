@@ -58,6 +58,19 @@ public class PlayerMovement : NetworkBehaviour
     // ever written on the peer that owns the car.
     [Networked] float SteerInput { get; set; }
 
+    // Recovery state (doc 05 RecoveryState). Networked, not a local effect: "a locally-triggered
+    // spin that the authority disagrees with is the exact desync players notice most."
+    // SettleHeading is the direction of travel at entry, in world yaw degrees; SpinDegrees is
+    // the signed rotation the spin covers on its way there, so the chassis lands facing where
+    // it's going and never emerges backwards.
+    [Networked] int SpinoutTicksRemaining { get; set; }
+    [Networked] int ImmunityTicksRemaining { get; set; }
+    [Networked] float SettleHeading { get; set; }
+    [Networked] float SpinDegrees { get; set; }
+
+    public bool IsSpinningOut => SpinoutTicksRemaining > 0;
+    public bool HasContactImmunity => ImmunityTicksRemaining > 0;
+
     public bool IsGrounded { get; private set; }
     public float ForwardSpeed { get; private set; }
 
@@ -193,18 +206,186 @@ public class PlayerMovement : NetworkBehaviour
         // being silently erased by the write at the end.
         Vector3 velocity = body.linearVelocity;
 
-        // Steps 5-8 grounded, step 9 airborne.
-        velocity = IsGrounded
+        // Recovery first: a spin-out reduces the input the rest of the tick sees, and supplies
+        // its own yaw on top of the player's.
+        float spinYawRate = TickRecovery(ref input, deltaTime);
+
+        // Steps 5-8 grounded, step 9 airborne. A spinning chassis slides instead of driving -
+        // the longitudinal/lateral split is meaningless while the nose is sweeping round.
+        if (IsSpinningOut) velocity = ResolveSpinning(input, velocity, deltaTime);
+        else velocity = IsGrounded
             ? ResolveGrounded(input, velocity, deltaTime)
             : ResolveAirborne(input, velocity, deltaTime);
 
         SteerInput = input.SteerAxis;
 
+        // Step 11, walls: the drive model has composed its velocity; if that velocity meets a
+        // wall this tick, WallContact says what to write instead. Resolved before the write
+        // rather than after PhysX has bounced the chassis - the point is that PhysX never gets
+        // to. Chassis-to-chassis contact (host-resolved, doc 05 M1/M2) arrives in Phase 2b/2c.
+        velocity = ResolveWallContact(velocity, deltaTime);
+
         // Step 10: write velocity and angular velocity.
         body.linearVelocity = velocity;
-        body.angularVelocity = ResolveAttitude(hasContact, groundNormal);
+        body.angularVelocity = ResolveAttitude(hasContact, groundNormal, spinYawRate);
+    }
 
-        // Step 11 (contact) resolves after this write, once doc 05 exists - never during.
+    // ─── Recovery: spin-out (doc 05 M4) ─────────────────────────────────
+
+    // Entered by a wall impact above WallSpinoutSpeed (here) or a slam (Phase 2c). Refused
+    // while already spinning or immune - the chassis can still be pushed, its timer never
+    // extends. travelDirection is where the chassis is going as it enters; that is where it
+    // will be facing when it comes out. spinSign picks the turn direction (+1 clockwise).
+    public void EnterSpinout(Vector3 travelDirection, float spinSign)
+    {
+        if (IsSpinningOut || HasContactImmunity) return;
+
+        Vector3 travel = new Vector3(travelDirection.x, 0f, travelDirection.z);
+        if (travel.sqrMagnitude < 0.0001f) travel = transform.forward;
+        float settle = Mathf.Atan2(travel.x, travel.z) * Mathf.Rad2Deg;
+        float current = transform.eulerAngles.y;
+
+        // One full turn in the spin direction, plus whatever it takes to land on the settle
+        // heading - between half a turn and one and a half, so it always reads as a spin and
+        // never as a twitch.
+        float sign = spinSign >= 0f ? 1f : -1f;
+        float toSettle = Mathf.DeltaAngle(current, settle);
+        if (sign > 0f && toSettle < 0f) toSettle += 360f;
+        if (sign < 0f && toSettle > 0f) toSettle -= 360f;
+        float total = toSettle + sign * 360f;
+        if (Mathf.Abs(total) > 540f) total -= sign * 360f;
+
+        SpinoutTicksRemaining = Mathf.Max(1, handling.SpinoutTicks);
+        SettleHeading = settle;
+        SpinDegrees = total;
+        YawRate = 0f;
+
+        Debug.Log($"[Spinout] enter: {total:0}° over {SpinoutTicksRemaining} ticks, settling at {settle:0}°");
+    }
+
+    // Counts the state down, scales the input, and returns the yaw rate the spin itself needs
+    // this tick. The spin follows an eased curve from entry heading to settle heading - fast in
+    // the middle, slowing into the landing - so it looks like a controlled rotation, not a
+    // top. Driven as a target yaw per tick rather than a fixed rate, so a hit mid-spin that
+    // pushes the chassis still ends with it facing its travel direction.
+    float TickRecovery(ref PlayerNetInput input, float dt)
+    {
+        if (ImmunityTicksRemaining > 0) ImmunityTicksRemaining--;
+        if (!IsSpinningOut) return 0f;
+
+        input.SteerAxis *= handling.SpinoutSteerMultiplier;
+        input.ThrottleAxis *= handling.SpinoutThrottleMultiplier;
+        input.Drift = false;
+
+        int total = Mathf.Max(1, handling.SpinoutTicks);
+        float fractionNext = 1f - (SpinoutTicksRemaining - 1) / (float)total;
+        float eased = fractionNext * fractionNext * (3f - 2f * fractionNext); // smoothstep
+        float desiredYaw = SettleHeading - (1f - eased) * SpinDegrees;
+        float yawRate = Mathf.DeltaAngle(transform.eulerAngles.y, desiredYaw) / dt;
+
+        SpinoutTicksRemaining--;
+        if (SpinoutTicksRemaining == 0)
+        {
+            ImmunityTicksRemaining = handling.ContactImmunityTicks;
+            Debug.Log($"[Spinout] exit: facing {transform.eulerAngles.y:0}°, immune for {ImmunityTicksRemaining} ticks");
+        }
+
+        return yawRate;
+    }
+
+    // While spinning the chassis is a puck: it keeps sliding the way it was going, bleeding
+    // speed at coast drag, held up by the suspension as usual. The reduced throttle still adds
+    // a little push along wherever the nose happens to point - throttle authority is reduced,
+    // not removed - and the reduced steering still feeds YawRate through ResolveSteering.
+    Vector3 ResolveSpinning(PlayerNetInput input, Vector3 velocity, float dt)
+    {
+        Vector3 horizontal = new Vector3(velocity.x, 0f, velocity.z);
+        float speed = Mathf.MoveTowards(horizontal.magnitude, 0f, handling.CoastDrag * dt);
+        horizontal = horizontal.sqrMagnitude > 0.0001f ? horizontal.normalized * speed : Vector3.zero;
+
+        Vector3 nose = new Vector3(transform.forward.x, 0f, transform.forward.z).normalized;
+        horizontal += nose * (input.ThrottleAxis * handling.Acceleration * dt);
+        if (horizontal.magnitude > handling.TopSpeed) horizontal = horizontal.normalized * handling.TopSpeed;
+
+        ForwardSpeed = Vector3.Dot(horizontal, nose);
+        ResolveSteering(input, ForwardSpeed, dt, authority: 1f);
+
+        float vertical;
+        if (IsGrounded)
+        {
+            float suspension = GroundProbes.SuspensionResponse(probes, handling.SpringStrength, handling.DamperStrength);
+            vertical = velocity.y + suspension * dt;
+        }
+        else
+        {
+            vertical = velocity.y + Physics.gravity.y * handling.GravityScale * dt;
+        }
+
+        return new Vector3(horizontal.x, vertical, horizontal.z);
+    }
+
+    // Three rays along the direction of travel - centre and both front corners - as far as the
+    // chassis will move this tick plus its own half-length. Direction flattened to horizontal:
+    // walls stand upright, and it keeps a suspension bob from grazing the floor instead. Any
+    // hit with a sideways normal is a wall (WallContact.IsWall); the nearest decides. PhysX
+    // stays underneath as the backstop for whatever three rays miss.
+    //
+    // Three rays, not a box sweep: a sweep started inside its own collider reports the wall
+    // with a garbage normal on the tick after first contact, which is exactly the continuous
+    // scrape this has to keep resolving. Rays don't have that problem.
+    const float WallProbeHalfWidth = 0.45f;   // half the chassis box (GameSceneSetup.BuildColliders)
+    const float WallProbeHalfLength = 0.55f;
+    const float WallProbeSkin = 0.05f;
+    bool touchingWall;
+
+    Vector3 ResolveWallContact(Vector3 velocity, float dt)
+    {
+        Vector3 heading = new Vector3(velocity.x, 0f, velocity.z);
+        float speed = heading.magnitude;
+        if (speed < 0.01f) { touchingWall = false; return velocity; }
+        heading /= speed;
+
+        Vector3 origin = transform.position + Vector3.up * wheelRadius;
+        Vector3 side = Vector3.Cross(Vector3.up, heading) * WallProbeHalfWidth;
+        float reach = WallProbeHalfLength + speed * dt + WallProbeSkin;
+
+        bool found = false;
+        RaycastHit nearest = default;
+        for (int i = -1; i <= 1; i++)
+        {
+            if (!Physics.Raycast(origin + side * i, heading, out var hit, reach, groundMask, QueryTriggerInteraction.Ignore)) continue;
+            // Static geometry only: our own wheel spheres sit right in a corner ray's path, and
+            // another car's box has wall-like side normals - both carry a Rigidbody, walls don't.
+            if (hit.rigidbody != null) continue;
+            if (!WallContact.IsWall(hit.normal)) continue;
+            if (found && hit.distance >= nearest.distance) continue;
+            nearest = hit;
+            found = true;
+        }
+
+        // Side hint for a dead-on hit: whichever way the nose is already leaning along the wall.
+        Vector3 sideHint = Vector3.Dot(transform.forward, Vector3.Cross(nearest.normal, Vector3.up)) >= 0f
+            ? Vector3.Cross(nearest.normal, Vector3.up)
+            : Vector3.Cross(Vector3.up, nearest.normal);
+
+        if (!found || !WallContact.TryResolve(velocity, nearest.normal, sideHint, handling, out var contact))
+        {
+            touchingWall = false;
+            return velocity;
+        }
+
+        // One line per contact, not per tick of a scrape - the classification is what's being
+        // checked here, and this is the log 2b extends to chassis contact.
+        if (!touchingWall)
+            Debug.Log($"[WallContact] {contact.Class} at {contact.IncidenceDegrees:0}°, {contact.ClosingSpeed:0.0} m/s in -> {contact.Velocity.magnitude:0.0} m/s out{(contact.QualifiesForSpinout ? " (spin-out speed)" : "")}");
+        touchingWall = true;
+
+        // A hard enough impact spins the chassis - turning toward the side it's now sliding to,
+        // settling facing that slide. EnterSpinout refuses if already spinning or immune.
+        if (contact.QualifiesForSpinout)
+            EnterSpinout(contact.Velocity, Vector3.Dot(contact.Velocity, transform.right) >= 0f ? 1f : -1f);
+
+        return contact.Velocity;
     }
 
     // Pitch and roll are levelled rather than frozen. Grounded, the chassis aligns to the ground
@@ -218,7 +399,7 @@ public class PlayerMovement : NetworkBehaviour
     // writes velocity directly: the drive model owns its integration. Yaw comes from the
     // steering model and is applied around the chassis's own up axis, so levelling and steering
     // don't fight over the same component.
-    Vector3 ResolveAttitude(bool hasContact, Vector3 groundNormal)
+    Vector3 ResolveAttitude(bool hasContact, Vector3 groundNormal, float spinYawRate)
     {
         Vector3 targetUp = hasContact ? groundNormal : Vector3.up;
         float strength = hasContact ? handling.GroundedLevelStrength : handling.AirLevelStrength;
@@ -227,7 +408,7 @@ public class PlayerMovement : NetworkBehaviour
         // falls to zero as the chassis comes level, with no overshoot to damp.
         Vector3 levelling = Vector3.Cross(transform.up, targetUp) * strength;
 
-        return levelling + transform.up * (YawRate * Mathf.Deg2Rad);
+        return levelling + transform.up * ((YawRate + spinYawRate) * Mathf.Deg2Rad);
     }
 
     Vector3 ResolveGrounded(PlayerNetInput input, Vector3 velocity, float dt)

@@ -239,7 +239,14 @@ reason `constraints = None` is set in code on every peer.
    in `Spawned`/`Despawned`), and the "reconnecting" notice flashing for a few frames on a fast
    clean-quit hand-over (now held ≥ `ReconnectingNoticeSeconds`).
 
-**Untested since (2026-09-17, connect-on-Quick-Match + solo view):**
+9. Connect-on-Quick-Match, solo view + fade, Cancel-then-retry, one migration (2026-09-20):
+   all pass. Phase 2a walls and 2d spin-out verified solo the same day (nothing networked in 2a;
+   2d's recovery state replicates like any other, two-peer behaviour still to be seen).
+
+**Still to verify on two peers:** a spin-out seen from the *other* car (the state is networked,
+the yaw curve is driven from replicated ticks — should look identical on both).
+
+**Untested since (2026-09-17, connect-on-Quick-Match + solo view) — now passed, kept for regressions:**
 - Open → your robot alone on the ground, centred, name above; no `[Fusion]` lines yet.
 - Quick Match → timer from 0 at once, no reset when the connection lands (~1 s later); the
   view doesn't change; your networked car stays hidden.

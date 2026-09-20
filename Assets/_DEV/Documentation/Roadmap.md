@@ -142,21 +142,37 @@ in `Networking_Progress.md`.
 
 GDD doc 05, milestones M1-M4. Split into four testable steps, in this order:
 
-**2a — Wall behaviour.** Project velocity along the wall rather than reflecting it, speed cost
-scaled by incidence angle, `min_exit_speed` floor. First because it fixes the Phase 1 regression,
-because doc 05 explicitly allows wall contact to resolve **locally** (no authority plumbing), and
-because it's the only part testable **solo** — everything car-vs-car needs two peers per
-iteration.
+**2a — Wall behaviour ✅ built and verified solo, 2026-09-20.** Project velocity along the wall
+rather than reflecting it, speed cost scaled by incidence angle, `min_exit_speed` floor. First
+because it fixes the Phase 1 regression, because doc 05 explicitly allows wall contact to
+resolve **locally** (no authority plumbing), and because it's the only part testable **solo**.
+`Game/Vehicle/WallContact.cs` + step 11 in `PlayerMovement`; detail in `Vehicle_Model.md`. The
+first cut costed the along-wall component on an impact, which at 86° is nearly nothing — a dead
+stop with a nudge; the doc costs *speed*, redirected along the wall, and that's what's in now.
 
-**2b — Detection & classification.** Glance / bump / slam by angle within the cone, not speed
-alone. Aggressor determination and contact quality. Classify and log only — confirm it labels
-hits correctly before it starts changing physics.
+**2b — Detection & classification. ← next, on hold (owner, 2026-09-20).** Glance / bump / slam
+by angle within the cone, not speed alone. Aggressor determination and contact quality.
+Classify and log only — confirm it labels hits correctly before it starts changing physics.
+Plan agreed: `Game/Vehicle/ChassisContact.cs` (pure `Classify` / `DetermineAggressor` /
+`Quality`, same shape as `WallContact`), detection host-only via `OnCollisionEnter` between two
+cars using each car's last *composed* velocity (not post-PhysX), one host Console line per
+contact, seven values under a `Contact` header in `HandlingValues` (doc 05: `bump_cone_angle`
+55°, `slam_cone_angle` 25°, `slam_closing_speed` 14 m/s, `bump_bonus` 1.4×,
+`boost_bump_multiplier` 1.6×, `aggressor_speed_cost` 0.02 Arena, `mass_ratio_cap` 2.0). Needs
+two peers. *Verify on the host:* side-by-side lean → Glance; chase and nudge a rear quarter →
+Bump with you as aggressor; T-bone → Slam; equal-speed head-on → Bump, aggressor both.
 
 **2c — Chassis-to-chassis resolution.** Host-authoritative momentum exchange using mass, plus the
 authored arcade bonus and aggressor speed cost, with `mass_ratio_cap`.
 
-**2d — Spin-out.** The only recovery state: networked, steering reduced but never zero, settles
-facing direction of travel, cannot be re-spun while active.
+**2d — Spin-out ✅ built and verified solo, 2026-09-20** (pulled ahead of 2b/2c: walls already
+supply the trigger, it's solo-testable, and 2b/2c need the state to exist). The only recovery
+state: networked, steering reduced but never zero, settles facing direction of travel, cannot
+be re-spun while active, immunity after. Detail in `Vehicle_Model.md`.
+
+*Phase 2 status:* 2a and 2d done; 2b and 2c remain — both need two peers, and 2c is what turns
+the labels into pushes (host-resolved momentum exchange, arcade bonus, aggressor cost, slam →
+spin-out via the existing `EnterSpinout`).
 
 *Done when:* two peers deliberately body-check and both see the same outcome, no snap.
 

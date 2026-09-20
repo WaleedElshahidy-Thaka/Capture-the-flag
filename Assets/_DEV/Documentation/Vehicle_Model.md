@@ -149,11 +149,57 @@ parked.
   directly. Boost is supposed to be earned by releasing a drift inside the window — that code
   gets deleted, not extended.
 
-## Known regression until Phase 2
+## Step 11 — walls (Phase 2a, doc 05 "Wall behaviour")
 
-Wall and car contact is **crude right now**, because writing velocity directly partly overwrites
-PhysX's own collision response. That's the expected cost of the determinism requirement, and it's
-what doc 05's authored resolution replaces — not something to patch here.
+`WallContact.cs` — pure functions, no state, nothing networked (doc 05 lets wall contact
+resolve locally: walls don't move and every peer has the same geometry). `PlayerMovement`
+calls it after the velocity is composed and **before** it is written: three rays along the
+direction of travel (centre and both front corners, flattened to horizontal, reach = half
+length + this tick's travel + skin); any static hit with a sideways normal is a wall; the
+nearest decides. Own wheels and other cars carry a Rigidbody and are skipped.
+
+The resolution is the doc's, and the one rule is **project, never reflect**: velocity is
+projected onto the wall plane, then costed by incidence angle — a *scrape* below
+`WallImpactAngle` (45°) loses `WallScrapeCost` scaled by angle; an *impact* above it keeps
+`1 − WallImpactCost` of its **speed**, redirected along the wall, plus a small
+`WallReboundSpeed` push-off; `MinExitSpeed` (4 m/s) is the floor after either. The impact rule
+costs speed, not the along-wall component, on purpose: at 86° the projection is ~7% of the speed,
+and costing *that* left the floor doing all the work — a dead stop with a nudge, which is what
+the first solo test felt like. Two decisions the doc leaves open: the floor never exceeds the
+speed the chassis arrived with (a wall costs speed, it can't hand it out — otherwise a parked
+car nudging a wall would launch), and a dead-on hit, having no "along", goes sideways along the
+wall the way the nose was already leaning. An impact above `WallSpinoutSpeed` is *logged* as
+qualifying; the spin-out state itself is 2d — and it, plus Phase 3's shake/squash, is where the
+*feel* of a head-on comes from. The projection alone can't supply that, by design.
+
+Because the resolved velocity runs parallel to the wall, the chassis never penetrates and
+PhysX has nothing to bounce — it stays underneath as the backstop for what three rays miss.
+One `[WallContact]` Console line per contact (not per tick of a scrape) reports class, angle,
+speed in and out — that log is what 2b extends to chassis contact.
+
+## Spin-out (Phase 2d, doc 05 M4) — the only recovery state
+
+Networked on `PlayerMovement` (doc 05's `RecoveryState`): `SpinoutTicksRemaining`,
+`ImmunityTicksRemaining`, `SettleHeading` (world yaw of the direction of travel at entry) and
+`SpinDegrees` (the signed rotation to get there — one full turn plus whatever lands on the
+settle heading, kept between half a turn and one and a half so it always reads as a spin).
+Networked because the doc says so: a locally-triggered spin the host disagrees with is the
+desync players notice most.
+
+Entered by a wall impact above `WallSpinoutSpeed` (a slam does it too, from 2c). Refused while
+spinning or immune — the chassis can still be pushed, the timer never extends. For
+`SpinoutTicks` (45, ~0.75 s — Arena's short value) the input the model sees is scaled by
+`SpinoutSteerMultiplier` (0.35, never zero) and `SpinoutThrottleMultiplier` (0.5); the chassis
+becomes a puck (`ResolveSpinning`: keeps sliding its way, coast drag, reduced throttle along
+the nose, suspension as usual) while an eased yaw curve sweeps it from entry heading to
+`SettleHeading` — so it comes out **facing where it's going**, never backwards. Then
+`ContactImmunityTicks` (45). Console lines on enter and exit.
+
+## Known regression until Phase 2c
+
+Car-to-car contact is still **raw PhysX** — writing velocity directly partly overwrites its
+collision response. That's what doc 05's host-resolved chassis contact replaces (2b/2c), not
+something to patch here.
 
 ## Tuning
 
