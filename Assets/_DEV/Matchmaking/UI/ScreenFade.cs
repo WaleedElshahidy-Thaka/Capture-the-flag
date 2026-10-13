@@ -3,10 +3,8 @@ using System.Collections;
 using UnityEngine;
 using UnityEngine.UI;
 
-// A full-screen black image that fades in, does one thing while the screen is black, then
-// fades back out. Used for the cut between the solo view (your robot alone, before a match is
-// found) and the group lobby view. Sits above every other panel on the matchmaking canvas;
-// built by GameSceneSetup.
+// Full-screen fade to black and back, running one action while the screen is black.
+// Used for the cut from the solo view to the lobby view.
 [RequireComponent(typeof(Image))]
 public class ScreenFade : MonoBehaviour
 {
@@ -24,8 +22,7 @@ public class ScreenFade : MonoBehaviour
         SetAlpha(0f);
     }
 
-    // atBlack runs at full black; onDone once the screen is clear again. A second call while
-    // one is running is ignored - the first cut is still on screen.
+    // Ignored while a fade is already running.
     public void Run(Action atBlack, Action onDone = null)
     {
         if (running != null) return;

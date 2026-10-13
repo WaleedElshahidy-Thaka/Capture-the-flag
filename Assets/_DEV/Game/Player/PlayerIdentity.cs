@@ -1,10 +1,8 @@
 using System;
 using UnityEngine;
 
-// Where this client's identity comes from. There is no sign-in in this project yet - the
-// launcher hands a --token= across (see Future_DEV/Scripts/Core), and when that identity is
-// wired in, this is the one place to read the real account name from. Until then: the OS user
-// name, which is at least distinct per machine when testing with two PCs.
+// This client's identity. There is no sign-in yet, so the display name is the OS user name
+// (replace LocalDisplayName's source once the launcher's --token identity is wired in).
 public static class PlayerIdentity
 {
     const int MaxLength = 20;
@@ -21,9 +19,7 @@ public static class PlayerIdentity
             if (string.IsNullOrWhiteSpace(name)) name = "Player";
             if (name.Length > MaxLength) name = name.Substring(0, MaxLength);
 #if UNITY_EDITOR
-            // Editor + build on one PC share the OS user name; tag the Editor so the two are
-            // telling apart in a two-instance test.
-            name += " (Editor)";
+            name += " (Editor)"; // tells Editor and build apart when testing both on one PC
 #endif
             return name;
         }
@@ -31,12 +27,8 @@ public static class PlayerIdentity
 
     public static void SetLocalDisplayName(string name) => overrideName = name;
 
-    // A stable id for this install, generated once and kept in PlayerPrefs. Sent to the host as
-    // Fusion's connection token on every connect, and stamped on this player's car
-    // (PlayerMatchState.OwnerToken). PlayerRefs are per-session - after a host migration every
-    // player reconnects as a new PlayerRef - so this is what lets the new host hand each car
-    // back to the person who was driving it. Editor and build keep separate PlayerPrefs, so a
-    // two-instance test on one PC still gets two ids.
+    // Stable per-install id, kept in PlayerPrefs. Sent as Fusion's connection token and stamped on
+    // our car (PlayerMatchState.OwnerToken) so a new host can give it back after a host migration.
     public static Guid InstallId
     {
         get

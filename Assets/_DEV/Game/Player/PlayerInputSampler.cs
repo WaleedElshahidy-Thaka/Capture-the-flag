@@ -1,9 +1,7 @@
 using UnityEngine.InputSystem;
 
-// Keyboard sampling for PlayerMovement's networked input, pulled out of the old
-// DriveNetworkBootstrap (retired along with Drive.unity) so QuickMatchFusionService's
-// RunnerCallbackRelay.OnInputAction can call it directly - same shape as the pattern already
-// used for OnInputAction elsewhere in this project.
+// Reads the keyboard into a PlayerNetInput. Called from Fusion's OnInput callback
+// (see QuickMatchRunnerFactory).
 public static class PlayerInputSampler
 {
     public static PlayerNetInput Sample()

@@ -1,9 +1,7 @@
 using Fusion;
 
-// Sampled once per network tick by PlayerInputSampler.Sample(), called from an OnInput callback
-// (Fusion requires input to be gathered there, not read directly in a NetworkBehaviour's
-// Update/FixedUpdateNetwork) and consumed by PlayerMovement.FixedUpdateNetwork via
-// GetInput<PlayerNetInput>.
+// One tick of driving input. Gathered in Fusion's OnInput callback (PlayerInputSampler) and
+// read by PlayerMovement via GetInput, or produced by BotDriver for unowned cars.
 public struct PlayerNetInput : INetworkInput
 {
     public float ThrottleAxis; // -1..1, W/S or Up/Down

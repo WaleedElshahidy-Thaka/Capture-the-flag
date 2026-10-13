@@ -1,42 +1,31 @@
+using System;
 using Fusion;
 using UnityEngine;
 
-// One singleton per Quick Match session, spawned by the host the moment the session is created.
-// Holds the shared start decision (MatchStarting, BotCount) and makes it, host-side, from the
-// replicated per-player state on PlayerMatchState:
-//
-//   - six searching                                   -> start, no bots
-//   - 2+ searching, shared timer >= 30s, all ready    -> start, bots fill the empty seats
-//   - one searching                                   -> starts only via RPC_RequestStartWithBots
-//
-// The timer itself is per-player (PlayerMatchState.SearchStartTick); "shared" just means the
-// highest timer among the players in the lobby, which every peer derives locally. Two searchers
-// don't join the lobby the instant they both exist: the host stamps them Found, both count the
-// same three seconds down ("Player found! Joining lobby in N"), and only then do they see each
-// other and share the timer.
-//
-// It also owns the freeze after a host migration: the new host restores this object from the
-// old host's snapshot, holds every car still until the players are back (or the reconnect
-// window runs out), then counts everyone down to the same resume tick.
-//
-// Runs at tick rate on the host, so it counts with plain loops rather than LINQ - no per-tick
-// allocations.
+// One per Quick Match session, spawned by the host. The host uses it to decide when the match
+// starts, from the replicated per-player state:
+//   6 searching                                  -> start, no bots
+//   2+ searching, shared timer >= 30 s, all ready -> start, bots fill the empty seats
+//   1 searching                                  -> only via PlayerMatchState.RPC_RequestStartWithBots
+// It also freezes the cars after a host migration until players are back, then resumes everyone
+// on the same tick.
 public class MatchmakingSessionState : NetworkBehaviour, IAfterHostMigration
 {
+    // Declaration order is the network layout - keep it stable.
     [Networked] public NetworkBool MatchStarting { get; set; }
     [Networked] public int BotCount { get; set; }
-
-    // Migration state. Migrating is set by the new host at hand-over and cleared once the
-    // reconnect window has been dealt with; MigratedAtTick is the new runner's tick at that
-    // moment; Frozen holds the cars while players reconnect; ResumeAtTick is the tick everyone
-    // unfreezes on (0 = not decided yet, still waiting for players).
-    [Networked] NetworkBool Migrating { get; set; }
+    [Networked] NetworkBool Migrating { get; set; }       // set by the new host until reconnects are settled
     [Networked] int MigratedAtTick { get; set; }
-    [Networked] public NetworkBool Frozen { get; set; }
-    [Networked] int ResumeAtTick { get; set; }
+    [Networked] public NetworkBool Frozen { get; set; }   // cars held still while players reconnect
+    [Networked] int ResumeAtTick { get; set; }            // 0 = still waiting for players
 
-    // Seconds until play resumes; negative while the new host is still waiting for players to
-    // come back, so the UI can say "waiting" rather than show a number it can't promise.
+    // The instance on this peer (host and clients alike).
+    public static MatchmakingSessionState Local;
+
+    // Host only: raised once every object from the old host's snapshot exists again.
+    public static event Action<NetworkRunner> HostMigrationRestored;
+
+    // Seconds until play resumes; -1 while still waiting for players (the UI shows no number).
     public float ResumeSecondsRemaining
     {
         get
@@ -48,15 +37,6 @@ public class MatchmakingSessionState : NetworkBehaviour, IAfterHostMigration
         }
     }
 
-    // Set on every peer this object replicates to (Spawned fires for the host and every
-    // client). Read by FusionActiveQuickMatchSession, PlayerLobbyVisibility and the
-    // bot-request RPC rather than searched for in the scene.
-    public static MatchmakingSessionState Local;
-
-    // Host only, once every object from the old host's snapshot is back. PlayerLobbySpawner
-    // uses it to settle players who reconnected before the cars they own existed again.
-    public static event System.Action<NetworkRunner> HostMigrationRestored;
-
     public override void Spawned()
     {
         Local = this;
@@ -67,21 +47,7 @@ public class MatchmakingSessionState : NetworkBehaviour, IAfterHostMigration
         if (Local == this) Local = null;
     }
 
-    // Highest timer among everyone in the lobby - the shared timer. Computed the same way on
-    // every peer from replicated state. A searcher still counting down isn't in it yet.
-    public static float SharedElapsedSeconds()
-    {
-        float highest = 0f;
-        var players = PlayerMatchState.Active;
-        for (int i = 0; i < players.Count; i++)
-        {
-            if (!players[i].InLobby) continue;
-            float elapsed = players[i].SearchElapsedSeconds;
-            if (elapsed > highest) highest = elapsed;
-        }
-        return highest;
-    }
-
+    // Host only (no allocations - runs every tick).
     public override void FixedUpdateNetwork()
     {
         if (!Object.HasStateAuthority) return;
@@ -92,128 +58,73 @@ public class MatchmakingSessionState : NetworkBehaviour, IAfterHostMigration
         TickLobby();
     }
 
-    void TickLobby()
-    {
-        var players = PlayerMatchState.Active;
-        int present = 0;
-        bool allReady = true;
-
-        for (int i = 0; i < players.Count; i++)
-        {
-            var player = players[i];
-            if (!player.IsSearching) continue;
-            present++;
-            if (!player.IsReady) allReady = false;
-        }
-
-        // Full room starts immediately - no vote, no bots.
-        if (present >= MatchmakingConfig.MaxPlayers)
-        {
-            TriggerStart(0);
-            return;
-        }
-
-        // A lone searcher's ready flag means nothing (they start via the solo RPC); clear it so
-        // a partner who joins later isn't matched against a stale "ready". A countdown they were
-        // in the middle of is abandoned too - the partner it announced has gone.
-        if (present < 2)
-        {
-            for (int i = 0; i < players.Count; i++)
-            {
-                if (!players[i].IsSearching) continue;
-                players[i].IsReady = false;
-                players[i].AbortFoundCountdown();
-            }
-            return;
-        }
-
-        // Two or more searching: anyone not yet found starts their lobby-join countdown now.
-        for (int i = 0; i < players.Count; i++)
-            if (players[i].IsSearching) players[i].MarkFound(Runner.Tick);
-
-        if (allReady && SharedElapsedSeconds() >= MatchmakingConfig.BotOptionUnlockSeconds)
-            TriggerStart(MatchmakingConfig.MaxPlayers - present);
-    }
-
-    // After a hand-over, cars sit ownerless until their players reconnect (PlayerLobbySpawner
-    // hands each one back by OwnerToken). Mid-match: hold everything still, then count down to
-    // one shared resume tick once everyone is back or the window closes; whoever didn't make
-    // it is a bot from then on. In the lobby: nothing to freeze, but a car whose player never
-    // returns is removed once the window closes so it doesn't sit there counting as a searcher.
-    void TickMigration()
-    {
-        int now = Runner.Tick;
-        bool windowClosed = (now - MigratedAtTick) * Runner.DeltaTime >= MatchmakingConfig.ReconnectWindowSeconds;
-        var players = PlayerMatchState.Active;
-
-        if (!MatchStarting)
-        {
-            if (!windowClosed) return;
-            for (int i = players.Count - 1; i >= 0; i--)
-                if (players[i].IsBot) Runner.Despawn(players[i].Object);
-            Migrating = false;
-            return;
-        }
-
-        if (!Frozen) return;
-
-        if (ResumeAtTick == 0)
-        {
-            bool everyoneBack = true;
-            for (int i = 0; i < players.Count; i++)
-                if (players[i].IsBot && players[i].OwnerToken.Length > 0) { everyoneBack = false; break; }
-
-            if (everyoneBack || windowClosed)
-                ResumeAtTick = now + Mathf.CeilToInt(MatchmakingConfig.ResumeCountdownSeconds * Runner.TickRate);
-            return;
-        }
-
-        if (now < ResumeAtTick) return;
-
-        // Resume. Anyone still missing is a bot for the rest of the round, and the session shuts
-        // its door again - reconnects were the only reason it was open.
-        for (int i = 0; i < players.Count; i++)
-            if (players[i].IsBot) players[i].HandToBot();
-
-        Frozen = false;
-        ResumeAtTick = 0;
-        Migrating = false;
-        CloseSession();
-    }
-
-    // Only ever called where HasStateAuthority is true: from FixedUpdateNetwork above (already
-    // guarded), or from PlayerMatchState.RPC_RequestStartWithBots (an RpcTargets.StateAuthority
-    // RPC, which Fusion itself guarantees only runs on the state authority peer). Under
-    // Host/Client that peer is always the host.
-    //
-    // Releasing the movement gate happens here, host-side, for every searching car at once - a
-    // client has Input Authority over its car but not State Authority, so it cannot write
-    // CanMove itself. Cars that weren't searching stay parked.
+    // Host only. Releases every searching car and closes the session to newcomers.
     public void TriggerStart(int botCount)
     {
         BotCount = botCount;
         MatchStarting = true;
 
-        var players = PlayerMatchState.Active;
+        var players = PlayerRoster.Active;
         for (int i = 0; i < players.Count; i++)
             if (players[i].IsSearching) players[i].CanMove = true;
 
         CloseSession();
     }
 
-    // A match in progress admits nobody: invisible to matchmaking, and closed to joins. Before
-    // this existed a player opening the game mid-round was dropped straight into it - visible to
-    // everyone, unable to drive, no UI. Late join and rejoin are not supported by design; the
-    // one exception is reconnecting after a host migration, which reopens the door briefly.
+    // ─── Lobby ──────────────────────────────────────────────────────────
+
+    void TickLobby()
+    {
+        int searching = PlayerRoster.CountSearching();
+
+        if (searching >= MatchmakingConfig.MaxPlayers)
+        {
+            TriggerStart(0);
+            return;
+        }
+
+        if (searching < 2)
+        {
+            ResetLoneSearcher();
+            return;
+        }
+
+        MarkSearchersFound();
+
+        bool timerUnlocked = PlayerRoster.SharedElapsedSeconds() >= MatchmakingConfig.BotOptionUnlockSeconds;
+        if (PlayerRoster.AllSearchingReady() && timerUnlocked)
+            TriggerStart(MatchmakingConfig.MaxPlayers - searching);
+    }
+
+    // A lone searcher's ready flag is meaningless and any countdown's partner has left.
+    void ResetLoneSearcher()
+    {
+        var players = PlayerRoster.Active;
+        for (int i = 0; i < players.Count; i++)
+        {
+            if (!players[i].IsSearching) continue;
+            players[i].IsReady = false;
+            players[i].AbortFoundCountdown();
+        }
+    }
+
+    void MarkSearchersFound()
+    {
+        var players = PlayerRoster.Active;
+        for (int i = 0; i < players.Count; i++)
+            if (players[i].IsSearching) players[i].MarkFound(Runner.Tick);
+    }
+
+    // No late joins: a running match is hidden from matchmaking and closed.
     void CloseSession()
     {
         Runner.SessionInfo.IsVisible = false;
         Runner.SessionInfo.IsOpen = false;
     }
 
-    // New host, state just restored from the old host's snapshot. The old host is the one
-    // player who is certainly not coming back; their car goes to the bot driver now rather
-    // than after the reconnect window.
+    // ─── Host migration ─────────────────────────────────────────────────
+
+    // New host, right after restoring from the old host's snapshot.
     public void AfterHostMigration()
     {
         if (!Object.HasStateAuthority) return;
@@ -223,15 +134,60 @@ public class MatchmakingSessionState : NetworkBehaviour, IAfterHostMigration
         ResumeAtTick = 0;
         Frozen = MatchStarting;
 
-        var players = PlayerMatchState.Active;
+        // The old host is the one player certainly not coming back.
+        var players = PlayerRoster.Active;
         for (int i = 0; i < players.Count; i++)
             if (players[i].WasHost) players[i].HandToBot();
 
-        // Reconnecting players join by token, not by matchmaking - stay invisible, stay open
-        // until the resume closes it (or, in the lobby, reopen to matchmaking).
+        // Reconnects come by token, so the session stays invisible mid-match but open.
         Runner.SessionInfo.IsVisible = !MatchStarting;
         Runner.SessionInfo.IsOpen = true;
 
         HostMigrationRestored?.Invoke(Runner);
+    }
+
+    void TickMigration()
+    {
+        int now = Runner.Tick;
+        bool windowClosed = (now - MigratedAtTick) * Runner.DeltaTime >= MatchmakingConfig.ReconnectWindowSeconds;
+
+        if (!MatchStarting)
+        {
+            if (windowClosed) FinishLobbyMigration();
+            return;
+        }
+
+        if (!Frozen) return;
+
+        if (ResumeAtTick == 0)
+        {
+            if (!PlayerRoster.AnyOwnerMissing() || windowClosed)
+                ResumeAtTick = now + Mathf.CeilToInt(MatchmakingConfig.ResumeCountdownSeconds * Runner.TickRate);
+            return;
+        }
+
+        if (now >= ResumeAtTick) ResumeMatch();
+    }
+
+    // In the lobby: cars whose players never came back are removed.
+    void FinishLobbyMigration()
+    {
+        var players = PlayerRoster.Active;
+        for (int i = players.Count - 1; i >= 0; i--) // reverse: Despawn removes from the list
+            if (players[i].IsBot) Runner.Despawn(players[i].Object);
+        Migrating = false;
+    }
+
+    // Mid-match: anyone still missing is a bot for the rest of the round.
+    void ResumeMatch()
+    {
+        var players = PlayerRoster.Active;
+        for (int i = 0; i < players.Count; i++)
+            if (players[i].IsBot) players[i].HandToBot();
+
+        Frozen = false;
+        ResumeAtTick = 0;
+        Migrating = false;
+        CloseSession();
     }
 }

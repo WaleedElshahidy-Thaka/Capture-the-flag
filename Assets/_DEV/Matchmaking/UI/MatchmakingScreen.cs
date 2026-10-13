@@ -2,10 +2,8 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
-// Pure UI binding, no matchmaking logic of its own. Compact side panels per MatchmakingPhase
-// (Idle / Searching / Found / WaitingSolo / WaitingReady) kept off to the left so the robots
-// stay in view; nothing at all once the match is on (Starting). Two full-screen overlays cover
-// a host migration (Reconnecting / Resuming).
+// View for MatchmakingFlowController: shows one side panel per phase and forwards button
+// clicks. No matchmaking logic of its own.
 public class MatchmakingScreen : MonoBehaviour
 {
     [SerializeField] MatchmakingFlowController flowController;
@@ -14,24 +12,24 @@ public class MatchmakingScreen : MonoBehaviour
     [SerializeField] Button quickMatchButton;
 
     [SerializeField] GameObject searchingPanel;
-    [SerializeField] TMP_Text searchingText;    // "Searching for players... {elapsed}s"
-    [SerializeField] TMP_Text playersFoundText; // "{n} players found" once there are 2+
+    [SerializeField] TMP_Text searchingText;
+    [SerializeField] TMP_Text playersFoundText;
 
     [SerializeField] GameObject foundPanel;
-    [SerializeField] TMP_Text foundText;        // "Player found! Joining lobby in {n}"
+    [SerializeField] TMP_Text foundText;
 
     [SerializeField] GameObject soloBotPanel;
     [SerializeField] Button startWithBotsButton;
 
     [SerializeField] GameObject readyPanel;
     [SerializeField] Button readyToggleButton;
-    [SerializeField] TMP_Text readyToggleLabel; // "Play with computer players" / "Unready"
+    [SerializeField] TMP_Text readyToggleLabel;
 
     [SerializeField] Button cancelButton;
 
-    [SerializeField] GameObject reconnectingPanel; // "Host disconnected - reconnecting..."
+    [SerializeField] GameObject reconnectingPanel;
     [SerializeField] GameObject resumingPanel;
-    [SerializeField] TMP_Text resumingText;        // "Waiting for players..." / "Game resumes in {n}"
+    [SerializeField] TMP_Text resumingText;
 
     void Awake()
     {
@@ -52,31 +50,46 @@ public class MatchmakingScreen : MonoBehaviour
         flowController.PhaseChanged -= OnPhaseChanged;
     }
 
+    void OnPhaseChanged(MatchmakingPhase phase)
+    {
+        idlePanel.SetActive(phase == MatchmakingPhase.Idle);
+        searchingPanel.SetActive(phase.ShowsSearchTimer());
+        foundPanel.SetActive(phase == MatchmakingPhase.Found);
+        soloBotPanel.SetActive(phase == MatchmakingPhase.WaitingSolo);
+        readyPanel.SetActive(phase == MatchmakingPhase.WaitingReady);
+        cancelButton.gameObject.SetActive(phase.IsCancellable());
+        reconnectingPanel.SetActive(phase == MatchmakingPhase.Reconnecting);
+        resumingPanel.SetActive(phase == MatchmakingPhase.Resuming);
+    }
+
+    // Live text for whichever panel is showing.
     void Update()
     {
         var phase = flowController.Phase;
         var session = flowController.Session;
 
-        if (phase == MatchmakingPhase.Resuming)
-        {
-            float remaining = session != null ? session.ResumeSecondsRemaining : -1f;
-            resumingText.text = remaining < 0f
-                ? "Waiting for players..."
-                : $"Game resumes in {Mathf.CeilToInt(remaining)}";
-            return;
-        }
+        if (phase == MatchmakingPhase.Resuming) RefreshResuming(session);
+        else if (phase == MatchmakingPhase.Found) RefreshFound(session);
+        else if (phase.ShowsSearchTimer()) RefreshSearching(phase, session);
+    }
 
-        if (phase == MatchmakingPhase.Found)
-        {
-            if (session != null)
-                foundText.text = $"Player found! Joining lobby in {Mathf.CeilToInt(session.LobbyJoinSecondsRemaining)}";
-            return;
-        }
+    void RefreshResuming(IActiveQuickMatchSession session)
+    {
+        float remaining = session != null ? session.ResumeSecondsRemaining : -1f;
+        resumingText.text = remaining < 0f
+            ? "Waiting for players..."
+            : $"Game resumes in {Mathf.CeilToInt(remaining)}";
+    }
 
-        if (!IsSearchingPhase(phase)) return;
+    void RefreshFound(IActiveQuickMatchSession session)
+    {
+        if (session != null)
+            foundText.text = $"Player found! Joining lobby in {Mathf.CeilToInt(session.LobbyJoinSecondsRemaining)}";
+    }
 
-        // The flow controller's timer, not the session's: it runs from the click, through the
-        // connection, and on into the shared timer without a break.
+    void RefreshSearching(MatchmakingPhase phase, IActiveQuickMatchSession session)
+    {
+        // The flow controller's timer runs continuously from the click; the session's starts later.
         searchingText.text = $"Searching for players... {Mathf.FloorToInt(flowController.SearchElapsedSeconds)}s";
 
         int found = session != null ? session.LobbyCount : 0;
@@ -86,24 +99,5 @@ public class MatchmakingScreen : MonoBehaviour
 
         if (phase == MatchmakingPhase.WaitingReady && session != null)
             readyToggleLabel.text = session.IsReady ? "Unready" : "Play with computer players";
-    }
-
-    // The phases that show the timer panel. Found replaces it with its own message for 3 s.
-    static bool IsSearchingPhase(MatchmakingPhase phase) =>
-        phase == MatchmakingPhase.Searching || phase == MatchmakingPhase.WaitingSolo || phase == MatchmakingPhase.WaitingReady;
-
-    void OnPhaseChanged(MatchmakingPhase phase)
-    {
-        bool searching = IsSearchingPhase(phase);
-
-        idlePanel.SetActive(phase == MatchmakingPhase.Idle);
-        searchingPanel.SetActive(searching);
-        foundPanel.SetActive(phase == MatchmakingPhase.Found);
-        soloBotPanel.SetActive(phase == MatchmakingPhase.WaitingSolo);
-        readyPanel.SetActive(phase == MatchmakingPhase.WaitingReady);
-        // Cancel stays available through the countdown - you can still back out before the lobby.
-        cancelButton.gameObject.SetActive(searching || phase == MatchmakingPhase.Found);
-        reconnectingPanel.SetActive(phase == MatchmakingPhase.Reconnecting);
-        resumingPanel.SetActive(phase == MatchmakingPhase.Resuming);
     }
 }

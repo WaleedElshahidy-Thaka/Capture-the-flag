@@ -2,10 +2,9 @@ using System;
 using System.Collections;
 using UnityEngine;
 
-// No-network fake: PlayerCount is fixed at 1, no other player can ever appear. Exercises the
-// solo path (Quick Match -> Searching -> 30s -> "start with computer players") end to end
-// without Fusion or a real network connection involved. Swap for QuickMatchFusionService in
-// MatchmakingServices to go live. Not meant to exercise the 2+ player ready path.
+// Offline fake for UI work: always exactly one player, so it exercises the solo path
+// (Quick Match -> 30 s -> "start with computer players") without any network.
+// Select it in MatchmakingServices.
 public class QuickMatchLocalService : IQuickMatchService
 {
     public IEnumerator StartQuickMatch(string gameId, Action<StartQuickMatchResult> onResult)
@@ -14,12 +13,9 @@ public class QuickMatchLocalService : IQuickMatchService
         onResult?.Invoke(StartQuickMatchResult.Ok(new LocalActiveQuickMatchSession()));
     }
 
-    public void CancelQuickMatch()
-    {
-        // Nothing to tear down - no runner, no connection.
-    }
+    public void CancelQuickMatch() { }
 
-    // No host to lose. Explicit no-op accessors rather than unused-event warnings.
+    // There is no host to lose.
     public event Action HostLost { add { } remove { } }
     public event Action<IActiveQuickMatchSession> SessionRestored { add { } remove { } }
     public event Action<string> SessionFailed { add { } remove { } }
@@ -36,9 +32,10 @@ public class QuickMatchLocalService : IQuickMatchService
         public bool IsLocalPlayerSpawned => true;
 
         public bool IsSearching { get; private set; }
-        public float LobbyJoinSecondsRemaining => 0f; // nobody to be found
+        public float LobbyJoinSecondsRemaining => 0f;
         public bool InLobby => false;
         public int LobbyCount => 0;
+
         public void SetSearching(bool searching, float alreadyElapsedSeconds = 0f)
         {
             if (searching && !IsSearching) searchStartRealtime = Time.realtimeSinceStartup - alreadyElapsedSeconds;

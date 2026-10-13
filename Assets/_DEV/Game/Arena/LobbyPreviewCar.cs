@@ -1,11 +1,8 @@
 using TMPro;
 using UnityEngine;
 
-// The robot you see before a match is found: the art in seat 0 with your name over it, purely
-// local - no runner, no NetworkObject. It stands in for your car through Idle, connecting,
-// searching and the "Player found" countdown; the moment you're in the lobby it goes away and
-// the real networked cars take over (PlayerLobbyVisibility shows them at the same moment, and
-// PlayerCamera's fade covers the swap). Built into the scene by GameSceneSetup.
+// Local stand-in for your car before a match is found (no networking): the robot art in seat 0
+// with your name over it. Hidden once you enter the lobby and the real networked cars appear.
 public class LobbyPreviewCar : MonoBehaviour
 {
     [SerializeField] MatchmakingFlowController flow;
@@ -21,8 +18,7 @@ public class LobbyPreviewCar : MonoBehaviour
         SettleOnGround();
     }
 
-    // Seat positions are spawn heights (the networked cars drop onto their suspension); this
-    // one has no physics, so it's placed with its lowest point on the floor.
+    // Seats are at spawn height (real cars drop onto their suspension); this one has no physics.
     void SettleOnGround()
     {
         if (visual == null) return;
@@ -48,6 +44,6 @@ public class LobbyPreviewCar : MonoBehaviour
             if (nameTag != null) nameTag.SetActive(show);
         }
 
-        if (show && nameTag != null) PlayerNameTag.FaceCamera(nameTag.transform);
+        if (show && nameTag != null) CameraFacing.FaceUpright(nameTag.transform);
     }
 }

@@ -1,46 +1,33 @@
 using System;
 using Fusion;
 
-// IActiveQuickMatchSession backed by a live Photon Fusion NetworkRunner. Everything
-// MatchmakingFlowController asks for is derived here from either the intrinsic Fusion
-// session (PlayerCount) or the two networked types (PlayerMatchState for per-player
-// searching/ready/timer, MatchmakingSessionState for the shared start decision) - the flow
-// controller itself never references Fusion types directly.
-//
-// Read every frame by the UI, so the "which car is mine" lookup is cached on roster change
-// rather than searched per property access.
+// IActiveQuickMatchSession backed by a live NetworkRunner. Translates the networked types
+// (PlayerMatchState, MatchmakingSessionState) into the Fusion-free contract the flow controller uses.
 public class FusionActiveQuickMatchSession : IActiveQuickMatchSession
 {
     readonly NetworkRunner runner;
-    PlayerMatchState ownState;
+    PlayerMatchState ownState; // cached on roster change; the UI reads this every frame
+
+    public event Action Changed;
 
     public FusionActiveQuickMatchSession(NetworkRunner runner)
     {
         this.runner = runner;
-        PlayerMatchState.RosterChanged += OnRosterChanged;
+        PlayerRoster.Changed += OnRosterChanged;
         OnRosterChanged();
     }
 
     bool SessionValid => runner != null && runner.SessionInfo.IsValid;
-    MatchmakingSessionState SessionState => MatchmakingSessionState.Local;
+    static MatchmakingSessionState SessionState => MatchmakingSessionState.Local;
 
-    // HasInputAuthority - the per-player authority. Under Host/Client the host holds State
-    // Authority over every car, so HasStateAuthority would not identify "mine" on any peer.
     void OnRosterChanged()
     {
-        ownState = null;
-        var players = PlayerMatchState.Active;
-        for (int i = 0; i < players.Count; i++)
-        {
-            if (players[i].Object.HasInputAuthority) { ownState = players[i]; break; }
-        }
+        ownState = PlayerRoster.FindWithInputAuthority();
         Changed?.Invoke();
     }
 
     public int PlayerCount => SessionValid ? runner.SessionInfo.PlayerCount : 0;
     public int MaxPlayers => SessionValid ? runner.SessionInfo.MaxPlayers : MatchmakingConfig.MaxPlayers;
-    // There genuinely is a host (AutoHostOrClient), it's just never surfaced to players -
-    // nothing in the UI reads this. Kept because match-authority code needs to ask.
     public bool IsHost => runner != null && runner.IsServer;
 
     public bool IsLocalPlayerSpawned => ownState != null;
@@ -50,21 +37,10 @@ public class FusionActiveQuickMatchSession : IActiveQuickMatchSession
 
     public float LobbyJoinSecondsRemaining => ownState != null ? ownState.LobbyJoinSecondsRemaining : 0f;
     public bool InLobby => ownState != null && ownState.InLobby;
-
-    public int LobbyCount
-    {
-        get
-        {
-            int count = 0;
-            var players = PlayerMatchState.Active;
-            for (int i = 0; i < players.Count; i++)
-                if (players[i].InLobby) count++;
-            return count;
-        }
-    }
+    public int LobbyCount => PlayerRoster.CountInLobby();
 
     public float ElapsedSeconds => InLobby
-        ? MatchmakingSessionState.SharedElapsedSeconds()
+        ? PlayerRoster.SharedElapsedSeconds()
         : ownState != null ? ownState.SearchElapsedSeconds : 0f;
     public bool BotOptionUnlocked => IsSearching && ElapsedSeconds >= MatchmakingConfig.BotOptionUnlockSeconds;
 
@@ -79,19 +55,16 @@ public class FusionActiveQuickMatchSession : IActiveQuickMatchSession
     public bool IsFrozen => SessionState != null && SessionState.Frozen;
     public float ResumeSecondsRemaining => SessionState != null ? SessionState.ResumeSecondsRemaining : 0f;
 
-    public event Action Changed;
-
     public void Leave()
     {
         Detach();
         if (runner != null && runner.IsRunning) _ = runner.Shutdown();
     }
 
-    // The runner is going away without us asking (host migration): stop listening, don't shut
-    // anything down - the service is already doing that.
+    // The runner is going away by itself (host migration): stop listening, don't shut it down.
     public void Detach()
     {
-        PlayerMatchState.RosterChanged -= OnRosterChanged;
+        PlayerRoster.Changed -= OnRosterChanged;
         ownState = null;
     }
 }

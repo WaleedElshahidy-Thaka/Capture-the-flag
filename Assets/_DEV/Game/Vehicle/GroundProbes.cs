@@ -1,32 +1,22 @@
 using UnityEngine;
 
-// Step 2 of the Vehicle Drive Model's per-tick update (GDD doc 03): four raycasts from the
-// chassis corners, resolving ride height, grounded state and ground normal. Nothing here knows
-// anything about driving - it answers "where is the ground under each corner" and stops.
-//
-// Deliberately cast from authored corner offsets rather than from the visual tire transforms:
-// those get rotated every frame by the cosmetic steer/roll animation, which would make the probe
-// origins wobble and the whole simulation frame-rate dependent through the back door.
-//
-// Surface tags are not sampled. Track Data isn't being built and Glowtag FD-06 authors its own
-// arena, where untagged geometry resolves as Default and is fully drivable - so there is nothing
-// to sample yet. The probe result carries the normal, which is what the slope model (M3) needs.
+// Result of one suspension raycast.
 public struct ProbeResult
 {
     public bool HasContact;
-    public float Compression;         // 0 at rest height, +1 pushed a full rest length up into the chassis, negative hanging below rest
+    public float Compression;         // 0 at rest height, +1 fully compressed, negative hanging below rest
     public float CompressionVelocity; // positive while compressing
     public Vector3 GroundNormal;
     public Vector3 ContactPoint;
 }
 
+// Four raycasts from the wheel positions: answers "where is the ground under each corner".
+// Knows nothing about driving. Probe origins are fixed local offsets baked from the art, not
+// the tire transforms (those are animated every frame and would make the probes wobble).
 public static class GroundProbes
 {
-    // Probe origins are supplied by the caller as local offsets, ordered front-left,
-    // front-right, rear-left, rear-right. They're measured from the art once at prefab build
-    // time (GameSceneSetup.WireTires) rather than computed from a guessed chassis box.
-    //
-    // Fills results in place rather than allocating, so this can run every tick without churn.
+    // offsets are ordered front-left, front-right, rear-left, rear-right.
+    // Fills results in place so it can run every tick without allocating.
     public static void Cast(Transform chassis, Rigidbody body, Vector3[] offsets, float probeLength,
                             float restLength, LayerMask groundMask, ProbeResult[] results)
     {
@@ -50,23 +40,16 @@ public static class GroundProbes
         result.HasContact = true;
         result.GroundNormal = hit.normal;
         result.ContactPoint = hit.point;
-        // Signed, around the rest height: the spring pulls the chassis DOWN toward rest when a
-        // wheel hangs below it, not only pushes up when compressed. That's what lets the
-        // equilibrium sit exactly at restLength (see PlayerMovement's suspension step).
+        // Signed around rest height, so the spring also pulls down when a wheel hangs below it.
         result.Compression = restLength > 0f
             ? Mathf.Clamp((restLength - hit.distance) / restLength, -1f, 1f)
             : 0f;
-
-        // Derived from the body's current motion at this point rather than from a remembered
-        // previous compression. Same value, but it holds no state across ticks - so there is
-        // nothing extra to replicate or restore on a rollback (doc 03's determinism contract).
+        // Derived from current body motion (not last tick's compression) so there's no extra state to roll back.
         result.CompressionVelocity = Vector3.Dot(body.GetPointVelocity(origin), -down);
 
         return result;
     }
 
-    // Grounded requires two or more probes in contact, per doc 03: a chassis clipping a kerb
-    // with one corner is not grounded and does not get full traction from it.
     public static int CountGrounded(ProbeResult[] results)
     {
         int count = 0;
@@ -90,9 +73,8 @@ public static class GroundProbes
         return count > 0 ? (sum / count).normalized : fallback;
     }
 
-    // Averaged spring response across grounded probes. Averaged rather than summed so that
-    // adding probes doesn't multiply the force, and so a chassis straddling a hole is supported
-    // proportionally to how much of it is actually over ground.
+    // Averaged (not summed) spring + damper response, so a chassis over a hole is supported in
+    // proportion to how much of it is over ground.
     public static float SuspensionResponse(ProbeResult[] results, float springStrength, float damperStrength)
     {
         float total = 0f;
