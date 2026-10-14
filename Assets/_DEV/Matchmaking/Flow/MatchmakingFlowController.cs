@@ -144,6 +144,13 @@ public class MatchmakingFlowController : MonoBehaviour
 
         if (Session.MatchStarting)
         {
+            if (Session is FusionActiveQuickMatchSession fusionSession)
+            {
+                MatchStarter.StartMatch(
+                    fusionSession.Runner,
+                    Session.LobbyCount,
+                    Session.BotCount);
+            }
             MatchStarter.StartMatch(Session.LobbyCount, Session.BotCount);
             SetPhase(MatchmakingPhase.Starting);
             return;

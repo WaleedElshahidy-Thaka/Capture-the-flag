@@ -6,6 +6,7 @@ using Fusion;
 public class FusionActiveQuickMatchSession : IActiveQuickMatchSession
 {
     readonly NetworkRunner runner;
+    internal NetworkRunner Runner => runner;
     PlayerMatchState ownState; // cached on roster change; the UI reads this every frame
 
     public event Action Changed;

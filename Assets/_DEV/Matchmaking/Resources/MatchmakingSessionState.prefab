@@ -11,6 +11,7 @@ GameObject:
   - component: {fileID: 1379867546765980461}
   - component: {fileID: 2006386888596778509}
   - component: {fileID: 1295173720972386986}
+  - component: {fileID: 2927221652144377756}
   m_Layer: 0
   m_Name: MatchmakingSessionState
   m_TagString: Untagged
@@ -52,6 +53,7 @@ MonoBehaviour:
   NestedObjects: []
   NetworkedBehaviours:
   - {fileID: 1295173720972386986}
+  - {fileID: 2927221652144377756}
   ForceRemoteRenderTimeframe: 0
 --- !u!114 &1295173720972386986
 MonoBehaviour:
@@ -68,3 +70,19 @@ MonoBehaviour:
   _MatchStarting:
     RawValue: 0
   _BotCount: 0
+  _Frozen:
+    RawValue: 0
+--- !u!114 &2927221652144377756
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5127855583868774295}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 797f4e5d7ca030e4abd57446878616c5, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CrownOwnership
+  _HolderId:
+    Raw: 0

@@ -267,6 +267,7 @@ GameObject:
   - component: {fileID: 7081416889851586965}
   - component: {fileID: 3297556945909652845}
   - component: {fileID: 7748398920277279014}
+  - component: {fileID: 5145500537281268614}
   m_Layer: 0
   m_Name: PlayerCar
   m_TagString: Untagged
@@ -412,6 +413,16 @@ MonoBehaviour:
     GroundedLevelStrength: 6
     AirLevelStrength: 2.5
     MaxDriveAngle: 50
+    WallImpactAngle: 45
+    WallScrapeCost: 0.25
+    WallImpactCost: 0.55
+    WallReboundSpeed: 2
+    WallSpinoutSpeed: 16
+    MinExitSpeed: 4
+    SpinoutTicks: 45
+    SpinoutSteerMultiplier: 0.35
+    SpinoutThrottleMultiplier: 0.5
+    ContactImmunityTicks: 45
     Mass: 1
     Inertia: 1
   groundMask:
@@ -452,6 +463,7 @@ MonoBehaviour:
   - {fileID: 1139345540186337428}
   - {fileID: 8881583501354250215}
   - {fileID: 2445612791816955325}
+  - {fileID: 5145500537281268614}
   ForceRemoteRenderTimeframe: 0
 --- !u!114 &1139345540186337428
 MonoBehaviour:
@@ -589,6 +601,21 @@ MonoBehaviour:
   hiddenUntilMatched:
   - {fileID: 6317966653749440794}
   - {fileID: 811861507679331236}
+--- !u!114 &5145500537281268614
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7300291597040378851}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: dbe216a06afa5d54980e6fbbb3405589, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CarContactClassifier
+  minimumApproachSpeed: 1.5
+  aggressorAdvantage: 1
+  minimumContactNormalAlignment: 0.15
 --- !u!1 &8674772987996342115
 GameObject:
   m_ObjectHideFlags: 0
