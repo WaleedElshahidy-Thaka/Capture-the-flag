@@ -55,6 +55,7 @@ public class CrownMatchState : NetworkBehaviour
 
         HolderId = newHolder.Id;
         Debug.Log($"[Crown] Transferred to: {newHolder.name}");
+        Debug.Log($"[Crown] Transfer executed at time {Time.time:F2}. " + $"New holder: {newHolder.Id}");
         return true;
     }
 }
