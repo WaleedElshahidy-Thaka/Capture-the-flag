@@ -29,6 +29,9 @@ public class MatchmakingFlowController : MonoBehaviour
     bool searchRequested;
     // Each connect gets a number so a late result from a cancelled attempt is ignored.
     int connectAttempt;
+    // True once the match clock has run out. The session is over: host-loss / restore / failure
+    // events are ignored so they can't cover the results screen, and Play Again starts fresh.
+    bool matchFinished;
 
     IQuickMatchService Service => MatchmakingServices.QuickMatch;
 
@@ -37,6 +40,7 @@ public class MatchmakingFlowController : MonoBehaviour
         Service.HostLost += OnHostLost;
         Service.SessionRestored += OnSessionRestored;
         Service.SessionFailed += OnSessionFailed;
+        MatchTimerState.MatchFinished += OnMatchFinished;
         SetPhase(MatchmakingPhase.Idle);
     }
 
@@ -45,6 +49,7 @@ public class MatchmakingFlowController : MonoBehaviour
         Service.HostLost -= OnHostLost;
         Service.SessionRestored -= OnSessionRestored;
         Service.SessionFailed -= OnSessionFailed;
+        MatchTimerState.MatchFinished -= OnMatchFinished;
     }
 
     // ─── Commands (UI buttons) ──────────────────────────────────────────
@@ -83,6 +88,24 @@ public class MatchmakingFlowController : MonoBehaviour
         SetPhase(MatchmakingPhase.Idle);
     }
 
+    // Results screen button: leave the finished session and search for a new match.
+    public void PlayAgain()
+    {
+        if (!matchFinished) return;
+        matchFinished = false;
+        connectAttempt++; // ignore any late result from the old connection
+
+        if (Session != null)
+        {
+            Session.Leave();
+            Session = null;
+        }
+
+        searchRequested = false;
+        SetPhase(MatchmakingPhase.Idle);
+        FindMatch();
+    }
+
     // ─── Service callbacks ──────────────────────────────────────────────
 
     void OnConnected(int attempt, StartQuickMatchResult result)
@@ -106,6 +129,13 @@ public class MatchmakingFlowController : MonoBehaviour
 
     void OnHostLost()
     {
+        // Match is over (e.g. the host pressed Play Again): keep showing the results.
+        if (matchFinished)
+        {
+            Session = null;
+            return;
+        }
+
         Session = null;
         searchRequested = false;
         reconnectingSince = Time.unscaledTime;
@@ -115,6 +145,12 @@ public class MatchmakingFlowController : MonoBehaviour
     // Stays Reconnecting until our car is ours again - see UpdateReconnecting.
     void OnSessionRestored(IActiveQuickMatchSession session)
     {
+        if (matchFinished)
+        {
+            session?.Leave(); // nothing to resume after the final whistle
+            return;
+        }
+
         Session = session;
     }
 
@@ -122,15 +158,22 @@ public class MatchmakingFlowController : MonoBehaviour
     {
         Debug.LogWarning($"[Matchmaking] {error}");
         Session = null;
+
+        if (matchFinished) return; // results stay up; Play Again starts a fresh search
+
         searchRequested = false;
         SetPhase(MatchmakingPhase.Idle);
     }
+
+    // The timer ran out: from here the session only exists to show results.
+    void OnMatchFinished(MatchResult _) => matchFinished = true;
 
     // ─── Per-frame transitions ──────────────────────────────────────────
 
     void Update()
     {
         if (Session == null) return; // offline, or still connecting
+        if (matchFinished) return;   // results screen owns the UI now
 
         if (Phase == MatchmakingPhase.Reconnecting)
         {
@@ -151,7 +194,6 @@ public class MatchmakingFlowController : MonoBehaviour
                     Session.LobbyCount,
                     Session.BotCount);
             }
-            MatchStarter.StartMatch(Session.LobbyCount, Session.BotCount);
             SetPhase(MatchmakingPhase.Starting);
             return;
         }

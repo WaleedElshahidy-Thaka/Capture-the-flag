@@ -18,10 +18,14 @@ public class PlayerMatchState : NetworkBehaviour, IAfterHostMigration
     [Networked] public NetworkBool WasHost { get; set; }
     [Networked] int SearchStartTick { get; set; }
     [Networked] int FoundTick { get; set; } // tick the host paired this searcher; 0 = not yet
+    [Networked] public int CrownTicks { get; set; }
+    [Networked] public int Score { get; set; }
+
 
     public bool IsFound => IsSearching && FoundTick != 0;
     public bool InLobby => IsFound && LobbyJoinSecondsRemaining <= 0f;
     public bool IsBot => Object.InputAuthority == PlayerRef.None;
+    
 
     // Networked properties are only readable between Spawned and Despawned. Unity callbacks
     // (LateUpdate) can outlive the runner during a host migration, so they check this first.

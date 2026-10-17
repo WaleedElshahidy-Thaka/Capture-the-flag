@@ -11,6 +11,7 @@ GameObject:
   - component: {fileID: 2684552697210940583}
   - component: {fileID: 7648548141984525941}
   - component: {fileID: 239045098584220863}
+  - component: {fileID: 9174057392718289478}
   m_Layer: 0
   m_Name: CrownMatchState
   m_TagString: Untagged
@@ -52,6 +53,7 @@ MonoBehaviour:
   NestedObjects: []
   NetworkedBehaviours:
   - {fileID: 239045098584220863}
+  - {fileID: 9174057392718289478}
   ForceRemoteRenderTimeframe: 0
 --- !u!114 &239045098584220863
 MonoBehaviour:
@@ -67,3 +69,19 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::CrownMatchState
   _HolderId:
     Raw: 0
+--- !u!114 &9174057392718289478
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4452088897403361538}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 061637ab6161eb24d92d3141c0288f50, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::MatchTimerState
+  durationSeconds: 90
+  pointsPerSecond: 0.6
+  _Finished:
+    RawValue: 0
