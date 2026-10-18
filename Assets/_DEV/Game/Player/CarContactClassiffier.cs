@@ -20,13 +20,17 @@ public sealed class CarContactClassifier : NetworkBehaviour
     [SerializeField, Min(0f)]
     private float minimumContactNormalAlignment = 0.15f;
 
+    [Header("Slam")]
+    [SerializeField, Min(0f)]
+    private float slamMinimumSpeed = 3f;
+
     [Header("Debug")]
     [SerializeField]
     private bool logContacts = true;
 
     private Rigidbody body;
     private NetworkObject networkObject;
-
+    private PlayerMovement movement;
     // Velocity at the end of this car's last network tick, i.e. BEFORE the physics step
     // that produces the collision. OnCollisionEnter sees post-impact velocities, so the
     // classifier uses this instead of body.linearVelocity.
@@ -37,6 +41,7 @@ public sealed class CarContactClassifier : NetworkBehaviour
     {
         body = GetComponent<Rigidbody>();
         networkObject = GetComponent<NetworkObject>();
+        movement = GetComponent<PlayerMovement>();
     }
 
     public override void FixedUpdateNetwork()
@@ -59,23 +64,23 @@ public sealed class CarContactClassifier : NetworkBehaviour
 
         if (otherObject == null || otherObject == networkObject)
             return;
+        // Process each pair only once when both callbacks occur.
+        if (networkObject.Id.Raw > otherObject.Id.Raw) // what is the purpose of this line??????
+            return;
+
 
         CarContactClassifier otherClassifier =
             otherObject.GetComponent<CarContactClassifier>();
 
-        if (otherClassifier == null)
-            return;
-
-        // The Crown spawns when the match starts, after the cars exist, so the
-        // reference is read at collision time and never cached.
-        CrownMatchState crown = CrownMatchState.Instance;
-
-        // Process only contacts where this car currently holds the Crown.
-        if (crown == null || !crown.IsHolder(networkObject))
+        if (otherClassifier == null ||
+            !otherObject.HasStateAuthority)
             return;
 
         Rigidbody otherBody = otherObject.GetComponent<Rigidbody>();
-        if (otherBody == null)
+        PlayerMovement otherMovement = otherObject.GetComponent<PlayerMovement>();
+
+
+        if (otherBody == null || otherMovement == null || movement == null)
             return;
 
         if (!TryClassifyAggressor(
@@ -84,15 +89,87 @@ public sealed class CarContactClassifier : NetworkBehaviour
                 otherClassifier,
                 out bool otherIsAggressor))
         {
-            Debug.Log("[Crown] Ambiguous contact. Crown retained.");
+            if (logContacts)
+                Debug.Log("[Contact] Ambiguous impact; no slam.");
+
             return;
         }
 
-        if (otherIsAggressor)
-            crown.TryTransfer(otherObject);
-        else
-            Debug.Log("[Crown] Crown holder was the clear aggressor; no transfer.");
+        CarContactClassifier aggressor =
+           otherIsAggressor ? otherClassifier : this;
+
+        CarContactClassifier victim =
+            otherIsAggressor ? this : otherClassifier;
+
+        PlayerMovement victimMovement =
+            otherIsAggressor ? movement : otherMovement;
+
+        // Do not repeatedly slam a car that is already spinning
+        // or has contact immunity.
+        if (!victimMovement.IsSpinningOut &&
+            !victimMovement.HasContactImmunity &&
+            aggressor.preStepVelocity.magnitude >= slamMinimumSpeed)
+        {
+            Vector3 travelDirection = victim.preStepVelocity;
+
+            if (travelDirection.sqrMagnitude < 0.01f)
+                travelDirection = victim.transform.forward;
+
+            travelDirection.Normalize();
+
+            Vector3 toAggressor =
+                aggressor.transform.position - victim.transform.position;
+
+            float cross = Vector3.Cross(
+                victim.transform.forward,
+                toAggressor.normalized).y;
+
+            float spinSign = cross >= 0f ? 1f : -1f;
+
+            victimMovement.EnterSpinout(
+                travelDirection,
+                spinSign);
+
+            if (logContacts)
+            {
+                Debug.Log(
+                    $"[Slam] {aggressor.name} slammed {victim.name}.");
+            }
+        }
+        bool flowControl = HandleCrownTransferOnImpact(aggressor, victim);
+        if (!flowControl)
+        {
+            return;
+        }
     }
+
+    private bool HandleCrownTransferOnImpact(CarContactClassifier aggressor, CarContactClassifier victim)
+    {
+        // The Crown spawns when the match starts, after the cars exist, so the
+        // reference is read at collision time and never cached.
+        CrownMatchState crown = CrownMatchState.Instance;
+
+        if (crown == null)
+            return false;
+
+        // The Crown transfers only if its current holder is the victim.
+        // The aggressor receives the Crown.
+        if (crown.IsHolder(victim.networkObject))
+        {
+            bool transferred = crown.TryTransfer(aggressor.networkObject);
+
+            if (logContacts)
+            {
+                Debug.Log(
+                    transferred
+                        ? $"[Crown] Transferred to aggressor: {aggressor.name}"
+                        : "[Crown] Transfer blocked (possibly protected).");
+            }
+        }
+
+        return true;
+    }
+
 
     private bool TryClassifyAggressor(
         Collision collision,
@@ -107,6 +184,10 @@ public sealed class CarContactClassifier : NetworkBehaviour
 
         // Orient the normal so it points from this car toward the other.
         Vector3 toOther = otherBody.worldCenterOfMass - body.worldCenterOfMass;
+
+        if (toOther.sqrMagnitude < 0.0001f)
+            return false;
+
         float alignment = Vector3.Dot(normal, toOther.normalized);
 
         if (Mathf.Abs(alignment) < minimumContactNormalAlignment)
@@ -130,8 +211,15 @@ public sealed class CarContactClassifier : NetworkBehaviour
         float thisApproach = Vector3.Dot(myVel, normal);
         float otherApproach = -Vector3.Dot(otherVel, normal);
 
+
         if (logContacts)
-            Debug.Log($"[Crown] closing={closingSpeed:F2} this={thisApproach:F2} other={otherApproach:F2} align={alignment:F2}");
+        {
+            Debug.Log(
+                $"[Contact] Closing={closingSpeed:F2}, " +
+                $"This={thisApproach:F2}, " +
+                $"Other={otherApproach:F2}, " +
+                $"Alignment={alignment:F2}");
+        }
 
         if (closingSpeed < minimumApproachSpeed)
             return false;
