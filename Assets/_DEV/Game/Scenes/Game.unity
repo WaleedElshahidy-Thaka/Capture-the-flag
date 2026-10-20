@@ -2463,6 +2463,7 @@ GameObject:
   - component: {fileID: 572064831}
   - component: {fileID: 572064830}
   - component: {fileID: 572064832}
+  - component: {fileID: 572064833}
   m_Layer: 0
   m_Name: MatchScoreBoardUI
   m_TagString: Untagged
@@ -2513,6 +2514,19 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::MatchResultsScreen
   flow: {fileID: 711196341}
   width: 440
+--- !u!114 &572064833
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 572064829}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 591f094d809bb34449c61295df72188a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::MatchCountdownUI
+  goSeconds: 0.8
 --- !u!1 &579373687
 GameObject:
   m_ObjectHideFlags: 0

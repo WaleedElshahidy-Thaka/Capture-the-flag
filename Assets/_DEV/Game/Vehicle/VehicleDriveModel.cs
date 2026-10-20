@@ -28,6 +28,10 @@ public class VehicleDriveModel
     public float ForwardSpeed { get; private set; }
     public ProbeResult[] Probes => probes;
 
+    // True if the last simulated tick ended in wall contact. Layer C reads it so a wall hit opens the
+    // drift's release window (contact never costs charge).
+    public bool TouchingWall => touchingWall;
+
     public VehicleDriveModel(Rigidbody body, HandlingValues handling, Vector3[] probeOffsets,
                              float wheelRadius, LayerMask groundMask)
     {

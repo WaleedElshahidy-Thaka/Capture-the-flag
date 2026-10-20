@@ -16,7 +16,9 @@ public class HandlingValues
     public float OverspeedDecay = 3f;         // m/s², how fast speed above TopSpeed falls back
 
     [Header("Boost")]
-    [Tooltip("Placeholder until the Drift & Boost system (doc 04) exists.")]
+    [Tooltip("Boost speed multiplier the drive model reads while its Boost input is set. PlayerMovement overwrites it " +
+             "each tick on the runtime copy from Layer C (the stage / chain target), so this serialized value is only " +
+             "the idle fallback.")]
     public float BoostMultiplier = 1.8f;      // raises target speed; no clamp at TopSpeed
 
     [Header("Steering")]
@@ -31,7 +33,8 @@ public class HandlingValues
     [Header("Lateral")]
     [Tooltip("Sideways speed decay per second: exp(-rate * dt). ~20 = grippy.")]
     public float GripRate = 20f;
-    [Tooltip("Grip while the drift button (Left Ctrl) is held. ~3 = visible slide.")]
+    [Tooltip("OBSOLETE: the Left Ctrl grip button is not in the Driving Foundation. PlayerMovement no longer " +
+             "passes the Drift input to the drive model. Sliding grip is GripRate x DriftGripMultiplier.")]
     public float DriftGripRate = 3f;
 
     [Header("Airborne")]
@@ -85,4 +88,44 @@ public class HandlingValues
     public float Mass = 1f;
     [Tooltip("Steering response multiplier. Never written to the Rigidbody's inertia tensor.")]
     public float Inertia = 1f;
+
+    // ─── Layer C: Drift & Boost (doc 04) ────────────────────────────────
+    // PROVISIONAL values from "Glowtag Drift, Boost & Overdrive: Implementation Answers v0.1".
+    // Values marked (mine) are not in the designer's doc.
+
+    [Header("Drift & Boost: hop and charge")]
+    public float DriftMinSpeed = 6f;               // m/s
+    public int HopTicks = 12;                      // ~0.2 s at 60 Hz
+    [Tooltip("(mine) Upward m/s given at hop start. Tune so the hop lasts about HopTicks.")]
+    public float HopVelocity = 1.2f;
+    [Tooltip("(mine) Steer needed at landing to commit a drift.")]
+    public float SteerCommitDeadzone = 0.2f;
+    [Tooltip("Units/tick at optimal slip. Race value; Glowtag overrides back to it. Range 0-2.5.")]
+    public float ReserveGainRate = 1f;
+    public float OptimalSlipAngle = 22f;           // degrees
+    [Tooltip("(mine) Slip angle at which charge bottoms out.")]
+    public float MaxSlipAngle = 60f;
+    [Tooltip("(mine) Charge scale at ~zero speed; the doc says speed 'scales mildly'.")]
+    public float SpeedChargeFloor = 0.6f;
+    public float Stage1Threshold = 45f;
+    public float Stage2Threshold = 100f;
+    public float Stage3Threshold = 170f;
+
+    [Header("Drift & Boost: window and boost")]
+    [Tooltip("~0.4 s at 60 Hz, range 10-45. The accessibility dial.")]
+    public int WindowTicks = 24;
+    public float Stage1BoostMultiplier = 1.12f;
+    [Tooltip("Overdrive uses this stage.")]
+    public float Stage2BoostMultiplier = 1.22f;
+    public float Stage3BoostMultiplier = 1.35f;
+    public int BoostTicks = 45;                    // ~0.75 s
+    public int ChainGraceTicks = 30;               // ~0.5 s
+    [Tooltip("Applies only while the aggressor is Boosting or Chained. Range 1.0-2.5.")]
+    public float BoostBumpMultiplier = 1.6f;
+
+    [Header("Drift & Boost: sliding handling")]
+    [Tooltip("Multiplier on GripRate while Sliding. Automatic, not a button.")]
+    public float DriftGripMultiplier = 0.45f;
+    [Tooltip("Multiplier on MaxYawRate while Sliding (Arena preset value).")]
+    public float DriftRotationAuthority = 1.35f;
 }

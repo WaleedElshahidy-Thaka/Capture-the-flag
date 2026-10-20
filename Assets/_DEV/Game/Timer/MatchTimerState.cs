@@ -17,18 +17,26 @@ public class MatchTimerState : NetworkBehaviour
     [HideInInspector]
     [SerializeField, Min(1f)] float durationSeconds = 90f;
     [SerializeField, Min(0f)] float pointsPerSecond = 0.6f; // flat rate, no multipliers. 0.5 = 1 point per 2 s
-
+    [SerializeField, Min(0f)] float countdownSeconds = 3f; // "3, 2, 1" before the clock starts
     // Declaration order is the network layout - keep it stable.
     [Networked] int RemainingTicks { get; set; }
     [Networked] NetworkBool Started { get; set; }
     [Networked] public NetworkBool Finished { get; set; }
-
+    [Networked] int CountdownTicks { get; set; } // ticks left before the match clock starts
     public static MatchTimerState Instance { get; private set; }
 
     // Raised once per peer when the match ends. The result is already saved locally.
     public static event Action<MatchResult> MatchFinished;
 
     public bool IsPlaying => Started && !Finished;
+    public bool InCountdown => Started && CountdownTicks > 0;
+    public float CountdownSecondsRemaining =>
+       Runner == null ? 0f : Mathf.Max(0f, CountdownTicks * Runner.DeltaTime);
+
+    // Cars may only drive once the match object exists and its countdown is over.
+    // PlayerMovement ANDs this with PlayerMatchState.CanMove.
+    public static bool AllowsDriving =>
+        Instance != null && Instance.Started && Instance.CountdownTicks <= 0;
 
     public float SecondsRemaining =>
         Runner == null ? 0f : Mathf.Max(0f, RemainingTicks * Runner.DeltaTime);
@@ -49,6 +57,7 @@ public class MatchTimerState : NetworkBehaviour
         if (Object.HasStateAuthority && !Started)
         {
             RemainingTicks = Mathf.RoundToInt(durationSeconds * Runner.TickRate);
+            CountdownTicks = Mathf.RoundToInt(countdownSeconds * Runner.TickRate);
             Started = true;
         }
     }
@@ -65,6 +74,13 @@ public class MatchTimerState : NetworkBehaviour
 
         var session = MatchmakingSessionState.Local;
         if (session != null && session.Frozen) return;
+
+        // Pre-match countdown: cars are held still, the 90 s clock and scoring haven't started.
+        if (CountdownTicks > 0)
+        {
+            CountdownTicks--;
+            return;
+        }
 
         if (crown.HolderId != default)
         {
