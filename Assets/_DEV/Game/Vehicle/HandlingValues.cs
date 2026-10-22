@@ -6,6 +6,20 @@ using UnityEngine;
 [System.Serializable]
 public class HandlingValues
 {
+    [Header("Impact Classification")]
+    [SerializeField, Min(0f)]
+    public float minimumApproachSpeed = 1.5f; //m/s, below this speed, no contact is considered an impact
+
+    [SerializeField, Min(0f)]
+    public float aggressorAdvantage = 1.0f;//m/s, if the other car is not at least this much more responsible for closing the gap, no aggressor is assigned
+
+    [SerializeField, Min(0f)]
+    public float minimumContactNormalAlignment = 0.15f;//cosine of angle between contact normal and the line connecting the two cars' centers of mass. Below this, no aggressor is assigned.
+
+    [Header("Slam")]
+    [SerializeField, Min(0f)]
+    public float slamMinimumSpeed = 3f;
+    
     [Header("Longitudinal")]
     public float TopSpeed = 22f;              // m/s, nominal ceiling under throttle alone
     public float Acceleration = 14f;          // m/s²

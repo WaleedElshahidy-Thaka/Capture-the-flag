@@ -12,7 +12,7 @@ using UnityEngine;
 [RequireComponent(typeof(PlayerMatchState))]
 public class PlayerMovement : NetworkBehaviour
 {
-    [SerializeField] HandlingValues handling = new HandlingValues();
+    HandlingValues handling;
     [SerializeField] LayerMask groundMask = ~0;
 
     [Header("Probe geometry (baked from the art by GameSceneSetup - don't hand-edit)")]
@@ -92,6 +92,16 @@ public class PlayerMovement : NetworkBehaviour
     {
         body = GetComponent<Rigidbody>();
         matchState = GetComponent<PlayerMatchState>();
+        handling = HandlingValuesProvider.Current;
+
+        if (handling == null)
+        {
+            Debug.LogError(
+                "HandlingValuesProvider has not been initialized!"
+            );
+            enabled = false;
+            return;
+        }
         ChassisPhysicsSetup.Apply(body);
         BuildModels();
     }
@@ -104,7 +114,9 @@ public class PlayerMovement : NetworkBehaviour
 
     void BuildModels()
     {
-        driveHandling = JsonUtility.FromJson<HandlingValues>(JsonUtility.ToJson(handling));
+        driveHandling = Newtonsoft.Json.JsonConvert
+                        .DeserializeObject<HandlingValues>
+                        (Newtonsoft.Json.JsonConvert.SerializeObject(handling));
         driveModel = new VehicleDriveModel(body, driveHandling, probeOffsets, wheelRadius, groundMask);
         visuals = new VehicleVisuals(new VehicleVisuals.Rig
         {

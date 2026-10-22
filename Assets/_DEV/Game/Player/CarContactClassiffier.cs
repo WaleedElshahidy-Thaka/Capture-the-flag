@@ -10,20 +10,6 @@ using UnityEngine;
 
 public sealed class CarContactClassifier : NetworkBehaviour
 {
-    [Header("Impact Classification")]
-    [SerializeField, Min(0f)]
-    private float minimumApproachSpeed = 1.5f;
-
-    [SerializeField, Min(0f)]
-    private float aggressorAdvantage = 1.0f;
-
-    [SerializeField, Min(0f)]
-    private float minimumContactNormalAlignment = 0.15f;
-
-    [Header("Slam")]
-    [SerializeField, Min(0f)]
-    private float slamMinimumSpeed = 3f;
-
     [Header("Debug")]
     [SerializeField]
     private bool logContacts = true;
@@ -108,7 +94,7 @@ public sealed class CarContactClassifier : NetworkBehaviour
         // or has contact immunity.
         if (!victimMovement.IsSpinningOut &&
             !victimMovement.HasContactImmunity &&
-            aggressor.preStepVelocity.magnitude >= slamMinimumSpeed)
+            aggressor.preStepVelocity.magnitude >= HandlingValuesProvider.Current.slamMinimumSpeed)
         {
             Vector3 travelDirection = victim.preStepVelocity;
 
@@ -171,11 +157,7 @@ public sealed class CarContactClassifier : NetworkBehaviour
     }
 
 
-    private bool TryClassifyAggressor(
-        Collision collision,
-        Rigidbody otherBody,
-        CarContactClassifier otherClassifier,
-        out bool otherIsAggressor)
+    private bool TryClassifyAggressor(Collision collision,Rigidbody otherBody, CarContactClassifier otherClassifier, out bool otherIsAggressor)
     {
         otherIsAggressor = false;
 
@@ -190,10 +172,10 @@ public sealed class CarContactClassifier : NetworkBehaviour
 
         float alignment = Vector3.Dot(normal, toOther.normalized);
 
-        if (Mathf.Abs(alignment) < minimumContactNormalAlignment)
+        if (Mathf.Abs(alignment) < HandlingValuesProvider.Current.minimumContactNormalAlignment)
         {
             if (logContacts)
-                Debug.Log($"[Crown] Rejected: align={alignment:F2} (min {minimumContactNormalAlignment:F2})");
+                Debug.Log($"[Crown] Rejected: align={alignment:F2} (min {HandlingValuesProvider.Current.minimumContactNormalAlignment:F2})");
             return false;
         }
 
@@ -221,11 +203,11 @@ public sealed class CarContactClassifier : NetworkBehaviour
                 $"Alignment={alignment:F2}");
         }
 
-        if (closingSpeed < minimumApproachSpeed)
+        if (closingSpeed < HandlingValuesProvider.Current.minimumApproachSpeed)
             return false;
 
         // If neither car is clearly responsible, do not transfer.
-        if (Mathf.Abs(otherApproach - thisApproach) < aggressorAdvantage)
+        if (Mathf.Abs(otherApproach - thisApproach) < HandlingValuesProvider.Current.aggressorAdvantage)
             return false;
 
         otherIsAggressor = otherApproach > thisApproach;

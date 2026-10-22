@@ -85,6 +85,22 @@ public static class MatchStarter
         crown.SetInitialHolder(eligibleCars[index]);
 
         Debug.Log("[Match] Crown and timer initialized.");
+
+        PowerUpCrateSpawner crateSpawner = Object.FindFirstObjectByType<PowerUpCrateSpawner>();
+
+        if (crateSpawner == null)
+        {
+            Debug.LogError(
+                "[Match] PowerUpCrateSpawner is missing from the match scene.");
+            return;
+        }
+
+        if (!crateSpawner.SpawnForMatch(runner))
+        {
+            Debug.LogError(
+                "[Match] Power-up crate spawning failed.");
+            return;
+        }
     }
 
     // Keep this only if another part of your project still calls it.

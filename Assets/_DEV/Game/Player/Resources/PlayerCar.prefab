@@ -143,7 +143,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: 31321ba15b8f8eb4c954353edc038b1d, type: 2}
+  - {fileID: 2100000, guid: a3748152df9072747aaceaaa677e041d, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -349,6 +349,7 @@ GameObject:
   - component: {fileID: 1972454022427814792}
   - component: {fileID: 8881583501354250215}
   - component: {fileID: 2445612791816955325}
+  - component: {fileID: 2009759128554848236}
   - component: {fileID: 6189387937430930796}
   - component: {fileID: 1139345540186337428}
   - component: {fileID: 8372063306951833953}
@@ -359,6 +360,7 @@ GameObject:
   - component: {fileID: 7748398920277279014}
   - component: {fileID: 5145500537281268614}
   - component: {fileID: 3322411862522694447}
+  - component: {fileID: 2280416578535006078}
   m_Layer: 0
   m_Name: PlayerCar
   m_TagString: Untagged
@@ -452,73 +454,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2d7dd53d1dfbd4245a10ec7d16127d72, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerMovement
-  handling:
-    TopSpeed: 22
-    Acceleration: 14
-    BrakeStrength: 26
-    CoastDrag: 5
-    ReverseTopSpeed: 8
-    ReverseDelay: 0.35
-    OverspeedDecay: 3
-    BoostMultiplier: 1.8
-    MaxYawRate: 110
-    SteerResponse: 0.18
-    SpeedScalingCurve:
-      serializedVersion: 2
-      m_Curve:
-      - serializedVersion: 3
-        time: 0
-        value: 0
-        inSlope: 0
-        outSlope: 5
-        tangentMode: 0
-        weightedMode: 0
-        inWeight: 0
-        outWeight: 0
-      - serializedVersion: 3
-        time: 0.2
-        value: 1
-        inSlope: 5
-        outSlope: -0.1875
-        tangentMode: 0
-        weightedMode: 0
-        inWeight: 0
-        outWeight: 0
-      - serializedVersion: 3
-        time: 1
-        value: 0.85
-        inSlope: -0.1875
-        outSlope: 0
-        tangentMode: 0
-        weightedMode: 0
-        inWeight: 0
-        outWeight: 0
-      m_PreInfinity: 2
-      m_PostInfinity: 2
-      m_RotationOrder: 4
-    GripRate: 20
-    DriftGripRate: 3
-    GravityScale: 2.2
-    AirSteerMultiplier: 0.4
-    AirDrag: 1.5
-    SuspensionTravel: 0.45
-    SpringStrength: 55
-    DamperStrength: 6
-    GroundedLevelStrength: 6
-    AirLevelStrength: 2.5
-    MaxDriveAngle: 50
-    WallImpactAngle: 45
-    WallScrapeCost: 0.25
-    WallImpactCost: 0.55
-    WallReboundSpeed: 2
-    WallSpinoutSpeed: 16
-    MinExitSpeed: 4
-    SpinoutTicks: 45
-    SpinoutSteerMultiplier: 0.35
-    SpinoutThrottleMultiplier: 0.5
-    ContactImmunityTicks: 45
-    Mass: 1
-    Inertia: 1
   groundMask:
     serializedVersion: 2
     m_Bits: 4294967295
@@ -536,6 +471,19 @@ MonoBehaviour:
   maxTireSteerAngle: 30
   maxLeanAngle: 12
   leanSpring: 8
+--- !u!114 &2009759128554848236
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7300291597040378851}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8fef830fa12c77f4d9313e7f54a83a8c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PowerUpPickupReceiver
+  inventory: {fileID: 2280416578535006078}
 --- !u!114 &6189387937430930796
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -557,8 +505,10 @@ MonoBehaviour:
   - {fileID: 1139345540186337428}
   - {fileID: 8881583501354250215}
   - {fileID: 2445612791816955325}
+  - {fileID: 2009759128554848236}
   - {fileID: 5145500537281268614}
   - {fileID: 3322411862522694447}
+  - {fileID: 2280416578535006078}
   ForceRemoteRenderTimeframe: 0
 --- !u!114 &1139345540186337428
 MonoBehaviour:
@@ -708,10 +658,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: dbe216a06afa5d54980e6fbbb3405589, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CarContactClassifier
-  minimumApproachSpeed: 1.5
-  aggressorAdvantage: 1
-  minimumContactNormalAlignment: 0.15
-  slamMinimumSpeed: 3
   logContacts: 0
 --- !u!114 &3322411862522694447
 MonoBehaviour:
@@ -726,6 +672,19 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CrownHolderVisual
   crownIndicator: {fileID: 1739993383681445762}
+--- !u!114 &2280416578535006078
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7300291597040378851}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: eac97868c47da434985a30a72743f633, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PowerUpInventory
+  _HeldItem: 0
 --- !u!1 &8674772987996342115
 GameObject:
   m_ObjectHideFlags: 0
