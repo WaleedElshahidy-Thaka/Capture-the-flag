@@ -114,15 +114,15 @@ public class PowerUpCrate : NetworkBehaviour
             CrownMatchState.Instance != null &&
             CrownMatchState.Instance.IsHolder(carObject);
 
-        // Temporary default until your match state exposes a trailing-player
-        // calculation. Do not enable catch-up weighting without that data.
-        bool isTrailing = false;
+
+        bool isTrailing = PowerUpCatchUpCalculator.IsTrailing(player);
 
         PowerUpType item = PowerUpRoller.Roll(
-            Runner.Tick,
-            player.Object.InputAuthority,
-            isCrownHolder,
-            isTrailing);
+                                        Runner.Tick,
+                                        player.Object.InputAuthority,
+                                        carObject.Id,
+                                        isCrownHolder,
+                                        isTrailing);
 
         TryBeginPickup(carObject, item);
     }

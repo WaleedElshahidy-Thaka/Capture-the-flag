@@ -18,7 +18,11 @@ public static class MatchStarter
             $"{botCount} bot(s).");
 
         // Only the server/host may spawn the shared match state.
-        if (!runner.IsServer)
+        bool hasAuthority = runner.GameMode == GameMode.Shared
+                            ? runner.IsSharedModeMasterClient
+                            : runner.IsServer;
+
+        if (!hasAuthority)
             return;
 
         // Prevent spawning another match state if one already exists.
@@ -80,27 +84,71 @@ public static class MatchStarter
             runner.Despawn(matchObject);
             return;
         }
+        /*
+         Here is where you would set the initial holder of the crown. The code is commented out because it may not be necessary to randomly assign a crown holder at the start of the match, depending on your game design. If you want to assign a random player as the initial crown holder, you can uncomment the following lines:
+         */
 
-        int index = Random.Range(0, eligibleCars.Count);
-        crown.SetInitialHolder(eligibleCars[index]);
+        //int index = Random.Range(0, eligibleCars.Count);
+        //crown.SetInitialHolder(eligibleCars[index]);
 
-        Debug.Log("[Match] Crown and timer initialized.");
+        /*
+         here is where you would spwan the crown in the scene by choose from the points that are in the scene, you can use the CrownSpawnerSelector to choose a point to spawn the crown. 
+         */
+        bool flowControl = HandleCrownSpawning(runner, matchObject, crown);
+        if (!flowControl)
+        {
+            return;
+        }
 
+        flowControl = HandleCrateSpawning(runner);
+        if (!flowControl)
+        {
+            return;
+        }
+    }
+
+    private static bool HandleCrateSpawning(NetworkRunner runner)
+    {
         PowerUpCrateSpawner crateSpawner = Object.FindFirstObjectByType<PowerUpCrateSpawner>();
 
         if (crateSpawner == null)
         {
             Debug.LogError(
                 "[Match] PowerUpCrateSpawner is missing from the match scene.");
-            return;
+            return false;
         }
 
         if (!crateSpawner.SpawnForMatch(runner))
         {
             Debug.LogError(
                 "[Match] Power-up crate spawning failed.");
-            return;
+            return false;
         }
+
+        return true;
+    }
+
+    private static bool HandleCrownSpawning(NetworkRunner runner, NetworkObject matchObject, CrownMatchState crown)
+    {
+        CrownSpawnManager crownSpawner =
+               Object.FindFirstObjectByType<CrownSpawnManager>();
+
+        if (crownSpawner == null)
+        {
+            Debug.LogError(
+                "[Match] CrownSpawnManager is missing from the match scene.");
+            runner.Despawn(matchObject);
+            return false;
+        }
+
+        if (!crownSpawner.SpawnCrown(runner, crown))
+        {
+            Debug.LogError("[Match] Crown spawning failed.");
+            runner.Despawn(matchObject);
+            return false;
+        }
+        Debug.Log("[Match] Crown and timer initialized.");
+        return true;
     }
 
     // Keep this only if another part of your project still calls it.

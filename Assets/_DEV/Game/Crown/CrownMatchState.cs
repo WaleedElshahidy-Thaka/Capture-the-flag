@@ -17,7 +17,7 @@ public class CrownMatchState : NetworkBehaviour
     private int ProtectionTicksRemaining { get; set; }
 
     public bool IsProtected => ProtectionTicksRemaining > 0;
-
+    public bool HasHolder => HolderId != default;
     public override void Spawned()
     {
         if (Instance == null)
@@ -69,7 +69,23 @@ public class CrownMatchState : NetworkBehaviour
 
         Debug.Log($"[Crown] Initial holder: {car.name}. " + $"Protected for {protectionSeconds:F1} seconds.");
     }
+    public bool TryPickup(NetworkObject car)
+    {
+        if (Object == null ||
+            !Object.HasStateAuthority ||
+            car == null ||
+            HasHolder ||
+            IsProtected)
+        {
+            return false;
+        }
 
+        HolderId = car.Id;
+        ResetProtectionTime();
+
+        Debug.Log($"[Crown] Picked up by {car.name}.");
+        return true;
+    }
     private void ResetProtectionTime()
     {
         ProtectionTicksRemaining = Mathf.CeilToInt(protectionSeconds * Runner.TickRate);

@@ -57,7 +57,7 @@ public class PowerUpCrateSpawner : MonoBehaviour
                 newPostion,
                 point.rotation
             );
-
+            
             if (crate == null)
             {
                 Debug.LogError(
