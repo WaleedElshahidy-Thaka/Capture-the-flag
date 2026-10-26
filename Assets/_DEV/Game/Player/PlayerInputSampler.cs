@@ -20,6 +20,7 @@ public static class PlayerInputSampler
         data.Boost = keyboard.leftShiftKey.isPressed;
         data.Drift = keyboard.leftCtrlKey.isPressed;
         data.Hop = keyboard.spaceKey.isPressed;   // hop, then held through the slide
+        data.UsePowerUp = keyboard.fKey.isPressed;
         return data;
     }
 }

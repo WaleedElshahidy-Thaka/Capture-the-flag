@@ -135,7 +135,7 @@ public static class CrownSpawnSelector
                 secondNearest = distance;
             }
         }
-
+        Debug.Log($"[point] Point= {position} ,[CrownSpawn] Nearest={nearest:F2}, SecondNearest={secondNearest:F2}");
         return nearest;
     }
 

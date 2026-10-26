@@ -4,6 +4,8 @@ using UnityEngine;
 
 public class CrownSpawnManager : MonoBehaviour
 {
+    private HandlingValues handlingValues;
+
     [Header("Authored Spawn Points")]
     [SerializeField] private Transform[] spawnPoints;
 
@@ -11,19 +13,23 @@ public class CrownSpawnManager : MonoBehaviour
     [SerializeField] private NetworkObject crownPrefab;
 
     [Header("Spawn Rules")]
-    [SerializeField, Min(0f)]
-    private float minSpawnDistance = 5f;
-
     [SerializeField, Range(0.55f, 0.85f)]
     private float spawnAsymmetryRatio = 0.7f;
 
     [SerializeField, Min(0f)]
     private float telegraphDuration = 3f;
 
+    private void Awake()
+    {
+        handlingValues = HandlingValuesProvider.Current;
+    }
+
     public bool SpawnCrown(
         NetworkRunner runner,
         CrownMatchState matchState)
     {
+        Debug.Log($"[CrownSpawnManager] runner null: {runner == null}");
+        Debug.Log($"[CrownSpawnManager] matchState null: {matchState == null}");
         if (runner == null || matchState == null)
             return false;
 
@@ -51,7 +57,7 @@ public class CrownSpawnManager : MonoBehaviour
             spawnPoints,
             players,
             runner.Tick,
-            minSpawnDistance,
+            handlingValues.minSpawnDistance,
             spawnAsymmetryRatio);
 
         if (selectedPoint == null)
@@ -61,9 +67,11 @@ public class CrownSpawnManager : MonoBehaviour
             return false;
         }
 
+        Vector3 newPosition = new Vector3( selectedPoint.position.x, 1 ,selectedPoint.position.y);//the corwn should spawn at a height of 1 unit above the ground
+
         NetworkObject crownObject = runner.Spawn(
             crownPrefab,
-            selectedPoint.position,
+            newPosition,
             selectedPoint.rotation);
 
         if (crownObject == null)

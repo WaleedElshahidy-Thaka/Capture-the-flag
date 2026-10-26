@@ -142,14 +142,32 @@ public sealed class CarContactClassifier : NetworkBehaviour
         // The aggressor receives the Crown.
         if (crown.IsHolder(victim.networkObject))
         {
-            bool transferred = crown.TryTransfer(aggressor.networkObject);
-
-            if (logContacts)
+            if (crown.IsHolder(victim.networkObject))
             {
-                Debug.Log(
-                    transferred
-                        ? $"[Crown] Transferred to aggressor: {aggressor.name}"
-                        : "[Crown] Transfer blocked (possibly protected).");
+                DamperField damper =
+                    victim.GetComponent<DamperField>();
+
+                if (damper != null && damper.IsActive)
+                {
+                    if (logContacts)
+                    {
+                        Debug.Log(
+                            $"[DamperField] Crown transfer blocked. " +
+                            $"{victim.name} is protected.");
+                    }
+
+                    return true;
+                }
+
+                bool transferred = crown.TryTransfer(aggressor.networkObject);
+
+                if (logContacts)
+                {
+                    Debug.Log(
+                        transferred
+                            ? $"[Crown] Transferred to aggressor: {aggressor.name}"
+                            : "[Crown] Transfer blocked.");
+                }
             }
         }
 

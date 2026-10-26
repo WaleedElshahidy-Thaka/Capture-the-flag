@@ -3,15 +3,14 @@ using UnityEngine;
 
 public class CrownMatchState : NetworkBehaviour
 {
+    private readonly HandlingValues handlingValues = HandlingValuesProvider.Current;
     public static CrownMatchState Instance { get; private set; }
 
     // NetworkId of the car that currently holds the Crown.
     [Networked]
     public NetworkId HolderId { get; set; }
 
-    [Header("Crown Protection")]
-    [SerializeField, Min(0f)]
-    private float protectionSeconds = 3f;
+    
 
     [Networked]
     private int ProtectionTicksRemaining { get; set; }
@@ -67,7 +66,7 @@ public class CrownMatchState : NetworkBehaviour
         HolderId = car.Id;
         ResetProtectionTime();
 
-        Debug.Log($"[Crown] Initial holder: {car.name}. " + $"Protected for {protectionSeconds:F1} seconds.");
+        Debug.Log($"[Crown] Initial holder: {car.name}. " + $"Protected for {handlingValues.protectionSeconds:F1} seconds.");
     }
     public bool TryPickup(NetworkObject car)
     {
@@ -88,7 +87,7 @@ public class CrownMatchState : NetworkBehaviour
     }
     private void ResetProtectionTime()
     {
-        ProtectionTicksRemaining = Mathf.CeilToInt(protectionSeconds * Runner.TickRate);
+        ProtectionTicksRemaining = Mathf.CeilToInt(handlingValues.protectionSeconds * Runner.TickRate);
     }
 
     // Call only on State Authority after contact classification succeeds.

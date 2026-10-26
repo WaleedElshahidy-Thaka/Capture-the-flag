@@ -55,6 +55,7 @@ public class PlayerMovement : NetworkBehaviour
     [Networked] int ChainGraceTicksRemaining { get; set; }
     [Networked] int ChainLinks { get; set; }
     [Networked] int LastBoostStartTick { get; set; }
+    [Networked] NetworkBool PowerUpKeyWasPressed { get; set; }
 
     public bool IsSpinningOut => SpinoutTicksRemaining > 0;
     public bool HasContactImmunity => ImmunityTicksRemaining > 0;
@@ -80,6 +81,7 @@ public class PlayerMovement : NetworkBehaviour
     PlayerMatchState matchState;
     VehicleDriveModel driveModel;
     VehicleVisuals visuals;
+    PowerUpInventory powerUpInventory;
 
     // Per-car runtime copy of the handling values. The drive model reads this one, so Layer C can
     // modulate grip, yaw authority and the boost target each tick without touching the serialized profile.
@@ -87,11 +89,13 @@ public class PlayerMovement : NetworkBehaviour
 
     // Set from physics callbacks (wall / car contacts only, not the ground), consumed next tick.
     bool contactSinceLastTick;
-
+    // Prevents a held F key from activating repeatedly.
+    bool powerUpKeyWasPressed;
     void Awake()
     {
         body = GetComponent<Rigidbody>();
         matchState = GetComponent<PlayerMatchState>();
+        powerUpInventory = GetComponent<PowerUpInventory>();
         handling = HandlingValuesProvider.Current;
 
         if (handling == null)
@@ -163,6 +167,9 @@ public class PlayerMovement : NetworkBehaviour
     // Public so any input source (player or bot) goes through the same simulation.
     public void SimulateTick(PlayerNetInput input, float deltaTime)
     {
+
+        ProcessPowerUpInput(input);
+
         // 1. Layer C first: decide this tick's drift/boost state and the modifiers it implies.
         DriftBoostState drift = ReadDriftState();
         var driftInput = new DriftBoostInput
@@ -255,7 +262,22 @@ public class PlayerMovement : NetworkBehaviour
         if (!matchState.HasState) return; // networked SteerInput isn't readable without state
         visuals.Animate(ForwardSpeed, SteerInput, driveModel.Probes, Time.deltaTime);
     }
+    void ProcessPowerUpInput(PlayerNetInput input)
+    {
+        if (!Object.HasStateAuthority)
+            return;
 
+        bool pressed = input.UsePowerUp;
+
+        // Activate once when F changes from released to pressed.
+        if (pressed && !PowerUpKeyWasPressed)
+        {
+            if (powerUpInventory != null)
+                powerUpInventory.TryActivateHeldItem();
+        }
+
+        PowerUpKeyWasPressed = pressed;
+    }
     DriveState ReadDriveState() => new DriveState
     {
         YawRate = YawRate,

@@ -9,4 +9,6 @@ public struct PlayerNetInput : INetworkInput
     public NetworkBool Boost;  // Left Shift / right shoulder, HELD (Layer C decides what a press means)
     public NetworkBool Drift;  // Left Ctrl. OBSOLETE: not in the Driving Foundation; PlayerMovement ignores it.
     public NetworkBool Hop;    // Space / A-Cross, HELD: press = hop, held = slide, release = open the boost window
+    public NetworkBool UsePowerUp;  // F: activate the carried power-up
+
 }

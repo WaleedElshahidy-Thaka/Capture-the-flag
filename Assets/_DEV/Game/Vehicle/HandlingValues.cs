@@ -6,6 +6,17 @@ using UnityEngine;
 [System.Serializable]
 public class HandlingValues
 {
+    [Tooltip("Values For Crown Spawn Mechanic")]
+    [Header("Spawn Rules")]
+    [SerializeField, Min(0f)]
+    public float minSpawnDistance = 5f;
+
+    [Header("Crown Protection")]
+    [SerializeField, Min(0f)]
+    public float protectionSeconds = 3f;
+
+
+    [Tooltip("Values For Collision")]
     [Header("Impact Classification")]
     [SerializeField, Min(0f)]
     public float minimumApproachSpeed = 1.5f; //m/s, below this speed, no contact is considered an impact
