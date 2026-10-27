@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 
 // One tick of the vehicle drive model (GDD doc 03), independent of networking:
@@ -26,6 +27,13 @@ public class VehicleDriveModel
 
     public bool IsGrounded { get; private set; }
     public float ForwardSpeed { get; private set; }
+
+    // Surface under the probe majority on the last simulated tick (Default while airborne).
+    public SurfaceType Surface { get; private set; }
+
+    // Answers "what surface is at this ground point". Set by the network adapter (PlayerMovement), so
+    // the drive model itself stays networking-free. Null = everything is Default.
+    public Func<Vector3, SurfaceType> SurfaceAt { get; set; }
     public ProbeResult[] Probes => probes;
 
     // True if the last simulated tick ended in wall contact. Layer C reads it so a wall hit opens the
@@ -68,7 +76,11 @@ public class VehicleDriveModel
 
         float spinYawRate = spinout.Tick(ref state, ref input, currentYaw, dt);
 
-        var context = new MotionContext(chassis, probes, IsGrounded, dt);
+        Surface = IsGrounded ? SurfaceProbe.Resolve(probes, SurfaceAt) : SurfaceType.Default;
+
+        var context = new MotionContext(chassis, probes, IsGrounded, dt,
+                                        SurfaceProbe.GripMultiplier(Surface, handling),
+                                        SurfaceProbe.SteerAuthority(Surface, handling));
         velocity = CurrentMode(state).Resolve(input, velocity, context, ref state, out float forwardSpeed);
         ForwardSpeed = forwardSpeed;
 

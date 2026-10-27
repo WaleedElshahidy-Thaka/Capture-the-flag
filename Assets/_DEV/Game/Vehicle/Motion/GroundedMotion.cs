@@ -26,10 +26,12 @@ public class GroundedMotion : IMotionMode
         float vertical = MotionMath.Suspended(local.y, context.Probes, handling, dt);
 
         forwardSpeed = drive.NextForwardSpeed(input, local.z, ref state.BrakeHoldSeconds, dt);
-        state.YawRate = steering.NextYawRate(state.YawRate, input.SteerAxis, forwardSpeed, 1f, dt);
+        state.YawRate = steering.NextYawRate(state.YawRate, input.SteerAxis, forwardSpeed,
+                                             context.SurfaceSteerAuthority, dt);
 
         // Sideways speed decays per second (not per tick), so the feel is tick-rate independent.
-        float gripRate = input.Drift ? handling.DriftGripRate : handling.GripRate;
+        // The surface scales it on top of whatever Layer C already did (oil while drifting = very slidy).
+        float gripRate = (input.Drift ? handling.DriftGripRate : handling.GripRate) * context.SurfaceGripMultiplier;
         float lateral = local.x * Mathf.Exp(-gripRate * dt);
         if (Mathf.Abs(lateral) < RestDeadband) lateral = 0f;
 

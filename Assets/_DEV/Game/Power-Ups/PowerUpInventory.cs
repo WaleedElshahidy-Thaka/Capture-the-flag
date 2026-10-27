@@ -12,10 +12,14 @@ public class PowerUpInventory : NetworkBehaviour
     public bool HasItem => HeldItem != PowerUpType.None;
     private PlayerMovement movement;
     private DamperField damper;
+    private GrappleField grapple;
+    private OilSlick oilSlick;
     public override void Spawned()
     {
         movement = GetComponent<PlayerMovement>();
         damper = GetComponent<DamperField>();
+        grapple = GetComponent<GrappleField>();
+        oilSlick = GetComponent<OilSlick>();
         // Initialise replicated state on the State Authority only.
         if (Object.HasStateAuthority)
         {
@@ -80,8 +84,45 @@ public class PowerUpInventory : NetworkBehaviour
                     Debug.Log("[PowerUpInventory] Damper Field activated.");
                     return true;
                 }
-            // Add Grapple Field, Oil Slick,
-            // and Repulse Pulse here as their effects are implemented.
+            case PowerUpType.GrappleField:
+                {
+                    if (grapple==null)
+                    {
+                        grapple = GetComponent<GrappleField>();
+                    }
+                    if (grapple == null)
+                    {
+                        Debug.LogError(
+                            "[PowerUpInventory] GrappleField component is missing.");
+                        return false;
+                    }
+                    if (!grapple.TryActivate())
+                        return false;
+                    HeldItem = PowerUpType.None;
+                    Debug.Log("[PowerUpInventory] Grapple Field activated.");
+                    return true;
+                }
+            case PowerUpType.OilSlick:
+                {
+                    if (oilSlick == null)
+                        oilSlick = GetComponent<OilSlick>();
+
+                    if (oilSlick == null)
+                    {
+                        Debug.LogError(
+                            "[PowerUpInventory] OilSlick component is missing.");
+                        return false;
+                    }
+
+                    // No holder/chaser condition: oil is environmental and always usable.
+                    if (!oilSlick.TryActivate())
+                        return false;
+
+                    HeldItem = PowerUpType.None;
+                    Debug.Log("[PowerUpInventory] Oil Slick activated.");
+                    return true;
+                }
+            // Add Repulse Pulse here when its effect is implemented.
             default:
                 Debug.Log(
                     $"[PowerUpInventory] {HeldItem} is not implemented yet.");

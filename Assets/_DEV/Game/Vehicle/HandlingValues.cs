@@ -153,4 +153,14 @@ public class HandlingValues
     public float DriftGripMultiplier = 0.45f;
     [Tooltip("Multiplier on MaxYawRate while Sliding (Arena preset value).")]
     public float DriftRotationAuthority = 1.35f;
+
+    // ─── Surfaces (Handling Profiles) ───────────────────────────────────
+    // Untagged geometry is Default (FD-06). Oil only exists as runtime patches from the Oil Slick
+    // power-up (FD-04: "the sharper, briefer version of ice" - ice costs control, so oil costs grip).
+
+    [Header("Surface: Oil")]
+    [Tooltip("Multiplier on GripRate while the probe majority is on Oil. Low = the car keeps sliding the way it was going. Provisional.")]
+    public float OilGripMultiplier = 0.15f;
+    [Tooltip("Multiplier on steering authority while on Oil. Clamped above zero in code: steering authority is never zero (FD-04). Provisional.")]
+    public float OilSteerAuthority = 0.6f;
 }

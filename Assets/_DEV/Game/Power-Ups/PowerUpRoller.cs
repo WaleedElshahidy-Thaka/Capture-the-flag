@@ -26,7 +26,7 @@ public static class PowerUpRoller
     {
         int overdrive = OverdriveWeight;
         int grapple = isCrownHolder ? 0 : GrappleWeight;
-        int damper = DamperWeight;
+        int damper = isCrownHolder? DamperWeight : 0;
         int oil = OilWeight;
         int repulse = RepulseWeight;
 

@@ -477,6 +477,8 @@ GameObject:
   - component: {fileID: 3322411862522694447}
   - component: {fileID: 2280416578535006078}
   - component: {fileID: 478179450583080889}
+  - component: {fileID: 2562318211610782757}
+  - component: {fileID: 1770836067505527295}
   m_Layer: 0
   m_Name: PlayerCar
   m_TagString: Untagged
@@ -626,6 +628,8 @@ MonoBehaviour:
   - {fileID: 3322411862522694447}
   - {fileID: 2280416578535006078}
   - {fileID: 478179450583080889}
+  - {fileID: 2562318211610782757}
+  - {fileID: 1770836067505527295}
   ForceRemoteRenderTimeframe: 0
 --- !u!114 &1139345540186337428
 MonoBehaviour:
@@ -818,6 +822,47 @@ MonoBehaviour:
   ringVisual: {fileID: 249929647511849361}
   _IsActive:
     RawValue: 0
+--- !u!114 &2562318211610782757
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7300291597040378851}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f711f8cf784fe244e9bdabfbfdda81dc, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::GrappleField
+  durationSeconds: 6
+  grappleReachBonus: 5
+  minimumRelativeSpeed: 1
+  logGrapple: 1
+  _IsActive:
+    RawValue: 0
+--- !u!114 &1770836067505527295
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7300291597040378851}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0b4f0981169d20e469ccd42af8e199a0, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::OilSlick
+  patchPrefab: {fileID: 6327889759519374315, guid: a43bb02a688343d479681cf43571a63b, type: 3}
+  lifetimeSeconds: 8
+  radius: 2.5
+  dropDistanceBehind: 2
+  maxActivePatches: 6
+  groundMask:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  rayStartHeight: 2
+  rayLength: 20
+  logOil: 1
 --- !u!1 &8674772987996342115
 GameObject:
   m_ObjectHideFlags: 0

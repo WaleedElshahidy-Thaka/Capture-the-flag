@@ -61,6 +61,7 @@ public class PlayerMovement : NetworkBehaviour
     public bool HasContactImmunity => ImmunityTicksRemaining > 0;
     public bool IsGrounded => driveModel.IsGrounded;
     public float ForwardSpeed => driveModel.ForwardSpeed;
+    public SurfaceType CurrentSurface => driveModel.Surface;
 
     // Drift & boost, read by contact code, UI and VFX.
     public DriftPhase CurrentDriftPhase => (DriftPhase)DriftPhaseValue;
@@ -122,6 +123,7 @@ public class PlayerMovement : NetworkBehaviour
                         .DeserializeObject<HandlingValues>
                         (Newtonsoft.Json.JsonConvert.SerializeObject(handling));
         driveModel = new VehicleDriveModel(body, driveHandling, probeOffsets, wheelRadius, groundMask);
+        driveModel.SurfaceAt = SurfaceAt;
         visuals = new VehicleVisuals(new VehicleVisuals.Rig
         {
             Body = visual,
@@ -212,6 +214,12 @@ public class PlayerMovement : NetworkBehaviour
         SteerInput = driveModel.Simulate(input, ref state, deltaTime);
         WriteDriveState(state);
     }
+
+    // Runtime surfaces: Oil Slick patches on this runner. Everything else is Default until the arena
+    // gets authored surface tags (FD-06). Read at simulation time, so a resimulated tick sees the
+    // patches that exist on this peer now.
+    SurfaceType SurfaceAt(Vector3 groundPoint) =>
+        Runner != null && OilSurfaceRegistry.IsOilAt(Runner, groundPoint) ? SurfaceType.Oil : SurfaceType.Default;
 
     // Overdrive power-up: fires a boost directly through the same system - no drift, no window, no
     // press timing. Stage 2 strength (provisional), enters Boosting so it carries the bump multiplier

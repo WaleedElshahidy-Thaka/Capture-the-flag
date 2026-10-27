@@ -681,7 +681,6 @@ MonoBehaviour:
   - {fileID: 885230772}
   - {fileID: 490263736}
   crownPrefab: {fileID: 4152388235314660174, guid: e11df459b5e55734aba94136f8021326, type: 3}
-  minSpawnDistance: 5
   spawnAsymmetryRatio: 0.7
   telegraphDuration: 3
 --- !u!1 &146948789

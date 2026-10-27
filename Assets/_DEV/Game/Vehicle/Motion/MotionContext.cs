@@ -8,11 +8,18 @@ public readonly struct MotionContext
     public readonly bool IsGrounded;
     public readonly float DeltaTime;
 
-    public MotionContext(Transform chassis, ProbeResult[] probes, bool isGrounded, float deltaTime)
+    // What the surface under the probe majority does this tick. 1 = Default surface.
+    public readonly float SurfaceGripMultiplier;
+    public readonly float SurfaceSteerAuthority;
+
+    public MotionContext(Transform chassis, ProbeResult[] probes, bool isGrounded, float deltaTime,
+                         float surfaceGripMultiplier = 1f, float surfaceSteerAuthority = 1f)
     {
         Chassis = chassis;
         Probes = probes;
         IsGrounded = isGrounded;
         DeltaTime = deltaTime;
+        SurfaceGripMultiplier = surfaceGripMultiplier;
+        SurfaceSteerAuthority = surfaceSteerAuthority;
     }
 }
