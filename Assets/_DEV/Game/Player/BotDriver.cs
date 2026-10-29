@@ -3,5 +3,9 @@
 // Placeholder: the car parks. The real bot AI replaces the body of Think and nothing else.
 public static class BotDriver
 {
-    public static PlayerNetInput Think(PlayerMovement car) => default;
+    public static PlayerNetInput Think(PlayerMovement car)
+    {
+        // No brain on the prefab = the car parks, exactly like the old placeholder.
+        return car.TryGetComponent(out BotBrain brain) ? brain.Think(car) : default;
+    }
 }

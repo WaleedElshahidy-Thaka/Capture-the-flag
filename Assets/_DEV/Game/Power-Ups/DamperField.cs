@@ -1,13 +1,14 @@
-
 using Fusion;
 using UnityEngine;
 
 [RequireComponent(typeof(NetworkObject))]
 public class DamperField : NetworkBehaviour
 {
-    [Header("Settings")]
-    [SerializeField, Range(3f, 7f)]
-    private float durationSeconds = 5f;
+    // Tuning lives in HandlingValues (handling_values.json), next to Grapple Field and the Crown
+    // rules. Read live, so a changed JSON applies on the next activation. The JSON skips [Range],
+    // so the value is clamped here to the FD-04 range.
+    private static float DurationSeconds =>
+        Mathf.Clamp(HandlingValuesProvider.Current.damperDurationSeconds, 3f, 7f);
 
     [Header("Visuals")]
     [SerializeField]
@@ -34,9 +35,9 @@ public class DamperField : NetworkBehaviour
             return false;
 
         IsActive = true;
-        ActiveTimer = TickTimer.CreateFromSeconds(Runner, durationSeconds);
+        ActiveTimer = TickTimer.CreateFromSeconds(Runner, DurationSeconds);
 
-        Debug.Log($"[DamperField] Activated on {name} for {durationSeconds:F1}s.");
+        Debug.Log($"[DamperField] Activated on {name} for {DurationSeconds:F1}s.");
         RefreshVisual();
         return true;
     }

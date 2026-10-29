@@ -20,6 +20,9 @@ public class PlayerMatchState : NetworkBehaviour, IAfterHostMigration
     [Networked] int FoundTick { get; set; } // tick the host paired this searcher; 0 = not yet
     [Networked] public int CrownTicks { get; set; }
     [Networked] public int Score { get; set; }
+    // Lobby seat / start anchor, 0..SlotCount-1. Stable for the whole match, for players and bots -
+    // the "stable slot index" FD-07 uses as a bot's ParticipantRef. Appended - keep it last.
+    [Networked] public int Slot { get; set; }
 
 
     public bool IsFound => IsSearching && FoundTick != 0;

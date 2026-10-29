@@ -67,7 +67,7 @@ public class CrownSpawnManager : MonoBehaviour
             return false;
         }
 
-        Vector3 newPosition = new Vector3( selectedPoint.position.x, 1 ,selectedPoint.position.y);//the corwn should spawn at a height of 1 unit above the ground
+        Vector3 newPosition = new Vector3( selectedPoint.position.x, 1 ,selectedPoint.position.z);//the corwn should spawn at a height of 1 unit above the ground
 
         NetworkObject crownObject = runner.Spawn(
             crownPrefab,

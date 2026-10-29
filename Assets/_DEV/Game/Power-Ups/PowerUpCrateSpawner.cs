@@ -14,6 +14,16 @@ public class PowerUpCrateSpawner : MonoBehaviour
 
     private bool hasSpawned;
 
+
+    private void OnEnable()
+    {
+        MatchTimerState.MatchFinished += ResetValues;
+    }
+
+    private void OnDisable()
+    {
+        MatchTimerState.MatchFinished -= ResetValues;
+    }
     public bool SpawnForMatch(NetworkRunner runner)
     {
         if (runner == null || !runner.IsRunning)
@@ -79,5 +89,10 @@ public class PowerUpCrateSpawner : MonoBehaviour
             return runner.IsSharedModeMasterClient;
 
         return runner.IsServer;
+    }
+
+    private void ResetValues(MatchResult _)
+    {
+        hasSpawned = false;
     }
 }

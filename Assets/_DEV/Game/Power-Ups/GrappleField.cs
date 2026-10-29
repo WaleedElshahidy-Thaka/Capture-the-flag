@@ -1,21 +1,22 @@
-
 using Fusion;
 using UnityEngine;
 
 [RequireComponent(typeof(NetworkObject))]
 public sealed class GrappleField : NetworkBehaviour
 {
-    [Header("Grapple Settings")]
-    [SerializeField, Range(4f, 8f)]
-    private float durationSeconds = 6f;
+    // Tuning lives in HandlingValues (handling_values.json), next to the other Crown and contact
+    // rules. Read live each time, so a changed JSON applies on the next match. The JSON skips the
+    // [Range]/[Min] attributes, so values are clamped here to the FD-04 ranges.
+    private static HandlingValues Values => HandlingValuesProvider.Current;
 
-    [Tooltip("Extra distance beyond the body collider, in world units.")]
-    [SerializeField, Min(0.01f)]
-    private float grappleReachBonus = 0.5f;
+    private static float DurationSeconds => 
+        Values.grappleDurationSeconds;
 
-    [Tooltip("Minimum relative speed required for a near-miss steal.")]
-    [SerializeField, Min(0f)]
-    private float minimumRelativeSpeed = 1f;
+    private static float ReachBonus =>
+        Values.grappleReachBonus;
+
+    private static float MinimumRelativeSpeed =>
+        Values.grappleMinimumRelativeSpeed;
 
     [Header("Debug")]
     [SerializeField]
@@ -24,6 +25,7 @@ public sealed class GrappleField : NetworkBehaviour
     private BoxCollider bodyCollider;
     private Rigidbody body;
     private NetworkObject networkObject;
+    private PlayerMovement movement;
 
     [Networked]
     public NetworkBool IsActive { get; private set; }
@@ -31,13 +33,14 @@ public sealed class GrappleField : NetworkBehaviour
     [Networked]
     private TickTimer ActiveTimer { get; set; }
 
-    public float GrappleReachBonus => grappleReachBonus;
+    public float GrappleReachBonus => ReachBonus;
     public BoxCollider BodyCollider => bodyCollider;
 
     private void Awake()
     {
         networkObject = GetComponent<NetworkObject>();
         body = GetComponent<Rigidbody>();
+        movement = GetComponent<PlayerMovement>();
 
         // The car body uses a BoxCollider; the four tires use SphereColliders.
         Collider[] colliders = GetComponents<Collider>();
@@ -75,13 +78,13 @@ public sealed class GrappleField : NetworkBehaviour
 
         IsActive = true;
         ActiveTimer = TickTimer.CreateFromSeconds(
-            Runner, durationSeconds);
+            Runner, DurationSeconds);
 
         if (logGrapple)
         {
             Debug.Log(
                 $"[GrappleField] Activated on {name} " +
-                $"for {durationSeconds:F1} seconds.");
+                $"for {DurationSeconds:F1} seconds.");
         }
 
         return true;
@@ -171,7 +174,7 @@ public sealed class GrappleField : NetworkBehaviour
         // Physical contact is handled by CarContactClassifier.
         // Grapple only handles a small gap between the body colliders.
         if (surfaceDistance <= 0.01f ||
-            surfaceDistance > grappleReachBonus)
+            surfaceDistance > ReachBonus)
         {
             return;
         }
@@ -180,8 +183,17 @@ public sealed class GrappleField : NetworkBehaviour
         float relativeSpeed =
             (body.linearVelocity - holderBody.linearVelocity).magnitude;
 
-        if (relativeSpeed < minimumRelativeSpeed)
+        if (relativeSpeed < MinimumRelativeSpeed)
             return;
+
+        // A Repulse shove never moves the Crown (FD-04), near-miss included.
+        PlayerMovement holderMovement = holderObject.GetComponent<PlayerMovement>();
+
+        if ((movement != null && movement.IsBeingShoved) ||
+            (holderMovement != null && holderMovement.IsBeingShoved))
+        {
+            return;
+        }
 
         // Preserve Damper Field's protection behavior.
         DamperField damper = holderObject.GetComponent<DamperField>();

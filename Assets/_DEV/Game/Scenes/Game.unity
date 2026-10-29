@@ -483,7 +483,7 @@ Transform:
   m_GameObject: {fileID: 111808156}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 3.43, z: 21.5}
+  m_LocalPosition: {x: 0, y: 3.37, z: 22.06}
   m_LocalScale: {x: 7, y: 0.5, z: 6}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -2597,6 +2597,7 @@ GameObject:
   - component: {fileID: 572064832}
   - component: {fileID: 572064833}
   - component: {fileID: 572064834}
+  - component: {fileID: 572064835}
   m_Layer: 0
   m_Name: MatchScoreBoardUI
   m_TagString: Untagged
@@ -2672,6 +2673,19 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 17a3eece2c6f5fc4db4c2b874f2838aa, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::DriftDebugHud
+--- !u!114 &572064835
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 572064829}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 72e01c89dd624c343828cebe8c8f3c7e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PowerUpDebugHud
+  showAllCars: 1
 --- !u!1 &579373687
 GameObject:
   m_ObjectHideFlags: 0

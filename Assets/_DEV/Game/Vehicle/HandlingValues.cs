@@ -30,7 +30,53 @@ public class HandlingValues
     [Header("Slam")]
     [SerializeField, Min(0f)]
     public float slamMinimumSpeed = 3f;
-    
+
+    [Tooltip("Values For Power-Ups")]
+    [Header("Grapple Field")]
+    //[Tooltip("grapple_ticks (FD-04), in seconds: provisional 6, range 4 to 8.")]
+    [SerializeField, Range(4f, 8f)]
+    public float grappleDurationSeconds = 6f;
+
+    [Tooltip("grapple_reach_bonus (FD-04): extra reach past the body collider, in metres. A near-miss, not an aura.")]
+    [SerializeField, Min(0.01f)]
+    public float grappleReachBonus = 0.5f;
+
+    [Tooltip("Minimum relative speed (m/s) for a near-miss steal, so a car parked beside the holder can't steal.")]
+    [SerializeField, Min(0f)]
+    public float grappleMinimumRelativeSpeed = 1f;
+
+    [Header("Damper Field")]
+    [Tooltip("damper_ticks (FD-04), in seconds: provisional 5, range 3 to 7. Feels longest to the opponents - keep it short.")]
+    [SerializeField, Range(3f, 7f)]
+    public float damperDurationSeconds = 5f;
+
+    // FD-04 gives no numbers for Repulse Pulse beyond its (low) roll weight - every value below is
+    // provisional until playtest. The roll weight itself stays in PowerUpRoller.
+    [Header("Repulse Pulse")]
+    [Tooltip("Charge-up (telegraph) length, in seconds. Long enough for nearby drivers to react. Range 0.3 to 1.5.")]
+    [SerializeField, Range(0.3f, 1.5f)]
+    public float repulseChargeSeconds = 0.75f;
+
+    [Tooltip("Reach of the pulse, in metres, measured flat from the user's centre.")]
+    [SerializeField, Min(1f)]
+    public float repulseRadius = 6f;
+
+    [Tooltip("Velocity change (m/s) given to every car in range, away from the user. Equal for all - not scaled by distance.")]
+    [SerializeField, Min(0f)]
+    public float repulseShoveSpeed = 9f;
+
+    [Tooltip("Seconds a shoved car has reduced grip (ShoveGripMultiplier) and can't be an aggressor.")]
+    [SerializeField, Min(0f)]
+    public float repulseShoveSeconds = 0.4f;
+
+    [Tooltip("Cars further above or below the user than this (metres) don't count as nearby - ramp decks.")]
+    [SerializeField, Min(0f)]
+    public float repulseMaxHeightDifference = 3f;
+
+    [Header("Repulse Pulse: being shoved")]
+    [Tooltip("Multiplier on GripRate while a Repulse shove is carrying the car, so the push isn't scrubbed off by the tyres. Provisional.")]
+    public float ShoveGripMultiplier = 0.1f;
+
     [Header("Longitudinal")]
     public float TopSpeed = 22f;              // m/s, nominal ceiling under throttle alone
     public float Acceleration = 14f;          // m/s²
@@ -163,4 +209,53 @@ public class HandlingValues
     public float OilGripMultiplier = 0.15f;
     [Tooltip("Multiplier on steering authority while on Oil. Clamped above zero in code: steering authority is never zero (FD-04). Provisional.")]
     public float OilSteerAuthority = 0.6f;
+
+    // ─── Bots (FD-07) ──────────────────────────────────────────────────
+    // FD-07 gives some values in ticks at 60 Hz; per FD-05 Glowtag authors them in seconds and
+    // converts at use (12 ticks = 0.2 s, 90 ticks = 1.5 s). Values marked "not in FD-07" are provisional.
+
+    [Header("Bots")]
+    [Tooltip("bot_reaction_ticks, in seconds: how often a bot re-picks its mode and target. Higher = slower, easier to escape. FD-07: 0.2 s (range ~0.07 to 0.5).")]
+    [SerializeField, Min(0.02f)]
+    public float botReactionSeconds = 0.2f;
+
+    [Tooltip("bot_aim_error: constant angular offset on the steer target, in degrees. Higher wanders more. Range 0 to 10.")]
+    [SerializeField, Range(0f, 10f)]
+    public float botAimErrorDegrees = 3f;
+
+    [Tooltip("bot_steer_full_angle: target angle (degrees) at which steering reaches full lock. Range 25 to 70.")]
+    [SerializeField, Range(25f, 70f)]
+    public float botSteerFullAngle = 45f;
+
+    [Tooltip("bot_whisker_length, in chassis lengths (~1.5).")]
+    [SerializeField, Min(0.1f)]
+    public float botWhiskerChassisLengths = 1.5f;
+
+    [Tooltip("Angle of the forward-left / forward-right whiskers from straight ahead, degrees. Not in FD-07.")]
+    [SerializeField, Range(10f, 60f)]
+    public float botWhiskerSideAngle = 30f;
+
+    [Tooltip("bot_crate_angle: a bot takes a crate only if it's already within this many degrees of its heading. Range 10 to 45.")]
+    [SerializeField, Range(10f, 45f)]
+    public float botCrateAngle = 25f;
+
+    [Tooltip("bot_stuck_ticks, in seconds: below botStuckSpeed this long = Recover. FD-07: 1.5 s (range 0.75 to 3).")]
+    [SerializeField, Min(0.1f)]
+    public float botStuckSeconds = 1.5f;
+
+    [Tooltip("stuck_speed: below this horizontal speed (m/s) a bot counts as stuck. Not in FD-07 (foundation value).")]
+    [SerializeField, Min(0f)]
+    public float botStuckSpeed = 1f;
+
+    [Tooltip("How long Recover lasts once entered, in seconds (it also lasts while spun out). Not in FD-07.")]
+    [SerializeField, Min(0.1f)]
+    public float botRecoverSeconds = 1f;
+
+    [Tooltip("Run mode: how far past itself, directly away from the nearest rival, the bot aims (metres). Not in FD-07.")]
+    [SerializeField, Min(1f)]
+    public float botRunDistance = 15f;
+
+    [Tooltip("Recover target: the arena centre, X and Z (FD-07). The default arena is centred on the origin.")]
+    public float botArenaCenterX = 0f;
+    public float botArenaCenterZ = 0f;
 }

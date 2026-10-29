@@ -99,14 +99,22 @@ public class PlayerLobbySpawner
             return;
         }
 
-        // PlayerId is the same on every peer, so player N always gets the same seat.
-        int slot = player.PlayerId % LobbyLayout.SlotCount;
+        // Player N prefers seat N; if someone already sits there (PlayerIds keep counting up as people
+        // come and go), the next free seat. Two cars must never share a seat - bots fill the rest.
+        int slot = LobbySeats.FirstFree(player.PlayerId % LobbyLayout.SlotCount);
+        if (slot < 0)
+        {
+            Debug.LogWarning($"[PlayerLobbySpawner] No free seat for {player} - lobby is full.");
+            return;
+        }
+
         runner.Spawn(playerCarPrefab, LobbyLayout.SlotPosition(slot), LobbyLayout.SlotRotation, player,
             onBeforeSpawned: (r, obj) =>
             {
                 var state = obj.GetComponent<PlayerMatchState>();
                 state.OwnerToken = token;
                 state.WasHost = isHost;
+                state.Slot = slot;
             });
     }
 }

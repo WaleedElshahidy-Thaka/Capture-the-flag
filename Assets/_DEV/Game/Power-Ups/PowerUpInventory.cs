@@ -14,12 +14,14 @@ public class PowerUpInventory : NetworkBehaviour
     private DamperField damper;
     private GrappleField grapple;
     private OilSlick oilSlick;
+    private RepulsePulse repulse;
     public override void Spawned()
     {
         movement = GetComponent<PlayerMovement>();
         damper = GetComponent<DamperField>();
         grapple = GetComponent<GrappleField>();
         oilSlick = GetComponent<OilSlick>();
+        repulse = GetComponent<RepulsePulse>();
         // Initialise replicated state on the State Authority only.
         if (Object.HasStateAuthority)
         {
@@ -120,6 +122,27 @@ public class PowerUpInventory : NetworkBehaviour
 
                     HeldItem = PowerUpType.None;
                     Debug.Log("[PowerUpInventory] Oil Slick activated.");
+                    return true;
+                }
+            case PowerUpType.RepulsePulse:
+                {
+                    if (repulse == null)
+                        repulse = GetComponent<RepulsePulse>();
+
+                    if (repulse == null)
+                    {
+                        Debug.LogError(
+                            "[PowerUpInventory] RepulsePulse component is missing.");
+                        return false;
+                    }
+
+                    // Consumed on activation even if nobody ends up in range: committing the
+                    // item is the decision (FD-04), so there is no refund.
+                    if (!repulse.TryActivate())
+                        return false;
+
+                    HeldItem = PowerUpType.None;
+                    Debug.Log("[PowerUpInventory] Repulse Pulse charging.");
                     return true;
                 }
             // Add Repulse Pulse here when its effect is implemented.

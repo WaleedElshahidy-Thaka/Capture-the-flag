@@ -56,12 +56,18 @@ public class PlayerMovement : NetworkBehaviour
     [Networked] int ChainLinks { get; set; }
     [Networked] int LastBoostStartTick { get; set; }
     [Networked] NetworkBool PowerUpKeyWasPressed { get; set; }
+    // Repulse Pulse: ticks left with reduced grip after being shoved. Appended - keep it last.
+    [Networked] int ShoveTicksRemaining { get; set; }
 
     public bool IsSpinningOut => SpinoutTicksRemaining > 0;
     public bool HasContactImmunity => ImmunityTicksRemaining > 0;
     public bool IsGrounded => driveModel.IsGrounded;
     public float ForwardSpeed => driveModel.ForwardSpeed;
     public SurfaceType CurrentSurface => driveModel.Surface;
+
+    // True while a Repulse shove is carrying this car. Contact code reads it: a shove is physics
+    // only and never makes anyone an aggressor (FD-04).
+    public bool IsBeingShoved => ShoveTicksRemaining > 0;
 
     // Drift & boost, read by contact code, UI and VFX.
     public DriftPhase CurrentDriftPhase => (DriftPhase)DriftPhaseValue;
@@ -199,6 +205,14 @@ public class PlayerMovement : NetworkBehaviour
         //    Sliding (not a button). Boost raises the target speed with no clamp; the drive model's
         //    overspeed_decay brings the car back down afterwards.
         driveHandling.GripRate = handling.GripRate * DriftBoost.GripMultiplier(drift, handling);
+
+        // Repulse shove: grip drops for a moment so the push carries instead of being scrubbed off by
+        // the tyres within a few ticks. Steering is untouched - a shove never takes control away.
+        if (ShoveTicksRemaining > 0)
+        {
+            driveHandling.GripRate *= handling.ShoveGripMultiplier;
+            ShoveTicksRemaining--;
+        }
         driveHandling.MaxYawRate = handling.MaxYawRate * DriftBoost.YawAuthority(drift, handling);
         driveHandling.BoostMultiplier = drift.IsBoosting
             ? DriftBoost.BoostTargetSpeed(drift) / Mathf.Max(0.01f, handling.TopSpeed)
@@ -220,6 +234,21 @@ public class PlayerMovement : NetworkBehaviour
     // patches that exist on this peer now.
     SurfaceType SurfaceAt(Vector3 groundPoint) =>
         Runner != null && OilSurfaceRegistry.IsOilAt(Runner, groundPoint) ? SurfaceType.Oil : SurfaceType.Default;
+
+    // Overdrive power-up: fires a boost directly through the same system - no drift, no window, no
+    // press timing. Stage 2 strength (provisional), enters Boosting so it carries the bump multiplier
+    // and can extend a chain. Call from the power-up activation code (host / state authority).
+    // Repulse Pulse (host only): a push from outside the tick. Added to the body's velocity, which the
+    // drive model reads back next tick, and replicated by NetworkRigidbody like any other motion.
+    public void ApplyShove(Vector3 velocityChange, float seconds)
+    {
+        if (!Object.HasStateAuthority) return;
+
+        body.linearVelocity += velocityChange;
+
+        int ticks = Mathf.CeilToInt(seconds * Runner.TickRate);
+        if (ticks > ShoveTicksRemaining) ShoveTicksRemaining = ticks;
+    }
 
     // Overdrive power-up: fires a boost directly through the same system - no drift, no window, no
     // press timing. Stage 2 strength (provisional), enters Boosting so it carries the bump multiplier

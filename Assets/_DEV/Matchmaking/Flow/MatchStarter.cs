@@ -84,30 +84,18 @@ public static class MatchStarter
             runner.Despawn(matchObject);
             return;
         }
-        /*
-         Here is where you would set the initial holder of the crown. The code is commented out because it may not be necessary to randomly assign a crown holder at the start of the match, depending on your game design. If you want to assign a random player as the initial crown holder, you can uncomment the following lines:
-         */
-
-        //int index = Random.Range(0, eligibleCars.Count);
-        //crown.SetInitialHolder(eligibleCars[index]);
-
-        /*
-         here is where you would spwan the crown in the scene by choose from the points that are in the scene, you can use the CrownSpawnerSelector to choose a point to spawn the crown. 
-         */
+       
         bool flowControl = HandleCrownSpawning(runner, matchObject, crown);
         if (!flowControl)
         {
             return;
         }
 
-        flowControl = HandleCrateSpawning(runner);
-        if (!flowControl)
-        {
-            return;
-        }
+        HandleCrateSpawning(runner);
+        
     }
 
-    private static bool HandleCrateSpawning(NetworkRunner runner)
+    private static void HandleCrateSpawning(NetworkRunner runner)
     {
         PowerUpCrateSpawner crateSpawner = Object.FindFirstObjectByType<PowerUpCrateSpawner>();
 
@@ -115,17 +103,17 @@ public static class MatchStarter
         {
             Debug.LogError(
                 "[Match] PowerUpCrateSpawner is missing from the match scene.");
-            return false;
+            return ;
         }
 
         if (!crateSpawner.SpawnForMatch(runner))
         {
             Debug.LogError(
                 "[Match] Power-up crate spawning failed.");
-            return false;
+            return ;
         }
 
-        return true;
+        return ;
     }
 
     private static bool HandleCrownSpawning(NetworkRunner runner, NetworkObject matchObject, CrownMatchState crown)

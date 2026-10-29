@@ -58,17 +58,24 @@ public class MatchmakingSessionState : NetworkBehaviour, IAfterHostMigration
         TickLobby();
     }
 
-    // Host only. Releases every searching car and closes the session to newcomers.
+    // Host only. Closes the session to newcomers, fills the empty seats with bots, and releases
+    // every car. Order matters and reads top to bottom:
+    //   1. Close the session: nobody new can find or join it.
+    //   2. MatchStarting: a connection that was already mid-join and lands after this point gets no
+    //      car (PlayerLobbySpawner.Seat ignores it), so it can never take a seat.
+    //   3. Only then fill the free seats with bots - the seat list can no longer change under us.
     public void TriggerStart(int botCount)
     {
-        BotCount = botCount;
+        CloseSession();
         MatchStarting = true;
+
+        // Bots take the seats nobody is sitting in, so the field is always MaxPlayers (FD-07).
+        // BotCount records how many were actually seated.
+        BotCount = BotFill.SpawnBots(Runner, botCount);
 
         var players = PlayerRoster.Active;
         for (int i = 0; i < players.Count; i++)
             if (players[i].IsSearching) players[i].CanMove = true;
-
-        CloseSession();
     }
 
     // ─── Lobby ──────────────────────────────────────────────────────────

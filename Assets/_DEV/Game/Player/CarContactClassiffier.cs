@@ -90,6 +90,16 @@ public sealed class CarContactClassifier : NetworkBehaviour
         PlayerMovement victimMovement =
             otherIsAggressor ? movement : otherMovement;
 
+        // Repulse Pulse is physics only (FD-04): a contact made while either car is being shoved has
+        // no aggressor doing the closing, so it neither slams nor moves the Crown.
+        if (movement.IsBeingShoved || otherMovement.IsBeingShoved)
+        {
+            if (logContacts)
+                Debug.Log("[Contact] Shove contact; no aggressor, no slam, no steal.");
+
+            return;
+        }
+
         // Do not repeatedly slam a car that is already spinning
         // or has contact immunity.
         if (!victimMovement.IsSpinningOut &&
@@ -175,7 +185,7 @@ public sealed class CarContactClassifier : NetworkBehaviour
     }
 
 
-    private bool TryClassifyAggressor(Collision collision,Rigidbody otherBody, CarContactClassifier otherClassifier, out bool otherIsAggressor)
+    private bool TryClassifyAggressor(Collision collision, Rigidbody otherBody, CarContactClassifier otherClassifier, out bool otherIsAggressor)
     {
         otherIsAggressor = false;
 
