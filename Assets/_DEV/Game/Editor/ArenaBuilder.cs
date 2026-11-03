@@ -141,7 +141,7 @@ static class ArenaBuilder
             var marker = new GameObject($"Seat_{slot}", typeof(LobbySeatMarker));
             marker.transform.SetParent(parent.transform, false);
             marker.transform.position = LobbyLayout.SlotPosition(slot);
-            marker.transform.rotation = LobbyLayout.SlotRotation;
+            marker.transform.rotation = LobbyLayout.SlotRotation(slot);
             marker.GetComponent<LobbySeatMarker>().SetSlot(slot);
         }
     }

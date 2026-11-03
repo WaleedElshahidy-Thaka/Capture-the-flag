@@ -744,6 +744,7 @@ MonoBehaviour:
     RawValue: 0
   _CrownTicks: 0
   _Score: 0
+  _Slot: 0
 --- !u!114 &2445612791816955325
 MonoBehaviour:
   m_ObjectHideFlags: 0

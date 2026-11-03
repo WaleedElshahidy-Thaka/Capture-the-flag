@@ -73,7 +73,7 @@ public sealed class GrappleField : NetworkBehaviour
         CrownMatchState crown = CrownMatchState.Instance;
 
         // Only a chaser can activate Grapple Field.
-        if (crown == null || crown.IsHolder(Object))
+        if (crown == null /*|| crown.IsHolder(Object)*/) // uncomment this line to restrict to non-Crown holders only
             return false;
 
         IsActive = true;

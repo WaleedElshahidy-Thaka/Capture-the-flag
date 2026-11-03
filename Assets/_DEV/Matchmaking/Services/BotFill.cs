@@ -33,7 +33,7 @@ public static class BotFill
             int seat = slot;
             int number = spawned + 1;
 
-            NetworkObject bot = runner.Spawn(prefab, LobbyLayout.SlotPosition(seat), LobbyLayout.SlotRotation,
+            NetworkObject bot = runner.Spawn(prefab, LobbyLayout.SlotPosition(seat), LobbyLayout.SlotRotation(seat),
                 inputAuthority: null,
                 onBeforeSpawned: (r, obj) =>
                 {

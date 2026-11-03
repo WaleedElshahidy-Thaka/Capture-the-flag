@@ -39,7 +39,7 @@ public sealed class BotBrain : NetworkBehaviour
     static int lastWorldRefreshTick;
     static bool worldEverRefreshed;
 
-    readonly RaycastHit[] hits = new RaycastHit[8];
+    readonly RaycastHit[] hits = new RaycastHit[16];
 
     Rigidbody body;
     PowerUpInventory inventory;
@@ -50,6 +50,7 @@ public sealed class BotBrain : NetworkBehaviour
     bool lastAvoiding;
     Vector3 lastLeftDir, lastForwardDir, lastRightDir;
     float lastWhiskerLength;
+    Vector3 lastRunDirection;
 
     public override void Spawned()
     {
@@ -187,9 +188,56 @@ public sealed class BotBrain : NetworkBehaviour
         return ArenaCenter(v);
     }
 
+    // Directions tried for Run, as offsets from "directly away", nearest first. Fixed order, so the
+    // choice is deterministic.
+    static readonly float[] runAngleOffsets = { 0f, 30f, -30f, 60f, -60f, 90f, -90f, 120f, -120f };
+
+    // FD-07 says "directly away from the nearest rival". Taken literally that can point at a wall a
+    // metre away, so the bot drives into it, stops and drops into Recover. Instead it tries directions
+    // close to "away", nearest first, and takes the first one that:
+    //   - has at least botRunMinDistance of open floor before a wall (checked with a sweep the width
+    //     of the car), and
+    //   - ends further from the nearest rival than the bot is now, so it's still running away.
+    // The target is pulled in short of the wall by botRunWallMargin, so it's always inside the arena.
+    // Cornered with no such direction: cut back through the open centre (FD-06), like Recover.
     Vector3 RunTarget(HandlingValues v)
     {
         Vector3 position = transform.position;
+        PlayerMatchState nearest = NearestRival(position);
+
+        if (nearest == null)
+            return ArenaCenter(v);
+
+        Vector3 rival = nearest.transform.position;
+        Vector3 away = position - rival;
+        away.y = 0f;
+        if (away.sqrMagnitude < 0.0001f) away = FlatForward();
+        away.Normalize();
+
+        float currentGapSqr = FlatSqr(position - rival);
+        float minDistance = Mathf.Min(v.botRunMinDistance, v.botRunDistance);
+
+        for (int i = 0; i < runAngleOffsets.Length; i++)
+        {
+            Vector3 direction = Quaternion.AngleAxis(runAngleOffsets[i], Vector3.up) * away;
+
+            float open = OpenDistance(position, direction, v.botRunDistance + v.botRunWallMargin);
+            float usable = Mathf.Min(v.botRunDistance, open - v.botRunWallMargin);
+            if (usable < minDistance) continue;
+
+            Vector3 target = position + direction * usable;
+            if (FlatSqr(target - rival) <= currentGapSqr) continue; // would run toward the rival
+
+            lastRunDirection = direction;
+            return target;
+        }
+
+        lastRunDirection = Vector3.zero;
+        return ArenaCenter(v);
+    }
+
+    PlayerMatchState NearestRival(Vector3 position)
+    {
         PlayerMatchState nearest = null;
         float nearestSqr = float.MaxValue;
 
@@ -206,16 +254,35 @@ public sealed class BotBrain : NetworkBehaviour
                 nearest = car;
             }
         }
-
-        if (nearest == null)
-            return position + FlatForward() * v.botRunDistance;
-
-        Vector3 away = position - nearest.transform.position;
-        away.y = 0f;
-        if (away.sqrMagnitude < 0.0001f) away = FlatForward();
-
-        return position + away.normalized * v.botRunDistance;
+        return nearest;
     }
+
+    // Open floor along a direction before the first wall, swept with a sphere about the car's width
+    // so gaps the car can't fit through count as blocked. Same filter as the whiskers: cars and
+    // drivable slopes don't count as walls.
+    float OpenDistance(Vector3 position, Vector3 direction, float maxDistance)
+    {
+        // Start the sweep above the floor: a sphere that begins overlapping the ground would report
+        // a hit at distance 0 with a sideways normal, and every direction would look blocked.
+        float radius = Mathf.Max(0.3f, chassisLength * 0.3f);
+        Vector3 origin = position + Vector3.up * (radius + 0.3f);
+        int count = Physics.SphereCastNonAlloc(origin, radius, direction, hits, maxDistance, ~0, QueryTriggerInteraction.Ignore);
+
+        float open = maxDistance;
+        for (int i = 0; i < count; i++)
+        {
+            RaycastHit hit = hits[i];
+            if (hit.collider.attachedRigidbody != null) continue;
+            if (hit.normal.y > 0.5f) continue;
+            // Overlapping at the start (Unity reports point zero): ramps under a tilted car, mostly.
+            // Skip it - the whiskers and Recover deal with a car already pressed against a wall.
+            if (hit.distance <= 0f && hit.point == Vector3.zero) continue;
+            if (hit.distance < open) open = hit.distance;
+        }
+        return open;
+    }
+
+    static float FlatSqr(Vector3 v) => v.x * v.x + v.z * v.z;
 
     bool TryCrateAhead(HandlingValues v, out Vector3 point)
     {
@@ -274,7 +341,9 @@ public sealed class BotBrain : NetworkBehaviour
         bool forwardHit = Whisker(origin, forward, length, out float forwardDist);
         bool rightHit = Whisker(origin, rightDir, length, out float rightDist);
 
-        lastLeftDir = leftDir; lastForwardDir = forward; lastRightDir = rightDir;
+        lastLeftDir = leftDir;
+        lastForwardDir = forward; 
+        lastRightDir = rightDir;
         lastWhiskerLength = length;
         lastAvoiding = leftHit || forwardHit || rightHit;
 
@@ -362,6 +431,12 @@ public sealed class BotBrain : NetworkBehaviour
         Gizmos.color = Mode == BotMode.Run ? Color.yellow : Mode == BotMode.Recover ? Color.magenta : Color.cyan;
         Gizmos.DrawLine(origin, TargetPoint);
         Gizmos.DrawWireSphere(TargetPoint, 0.5f);
+
+        if (Mode == BotMode.Run && lastRunDirection != Vector3.zero)
+        {
+            Gizmos.color = Color.green;
+            Gizmos.DrawRay(origin, lastRunDirection * 2f); // the direction Run picked
+        }
 
         Gizmos.color = lastAvoiding ? Color.red : Color.gray;
         Gizmos.DrawRay(origin, lastLeftDir * lastWhiskerLength);

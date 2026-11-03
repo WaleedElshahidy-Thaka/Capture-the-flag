@@ -87,7 +87,7 @@ static class MatchmakingUIBuilder
         var go = new GameObject("LobbyPreviewCar", typeof(LobbyPreviewCar));
         Undo.RegisterCreatedObjectUndo(go, SetupUtils.UndoLabel);
         go.transform.position = LobbyLayout.SlotPosition(0);
-        go.transform.rotation = LobbyLayout.SlotRotation;
+        go.transform.rotation = LobbyLayout.SlotRotation(0);
 
         // Zeroed so the robot sits on the root the camera and name tag are centred on.
         var visual = SetupUtils.InstantiateRobotArt(go.transform, out _);

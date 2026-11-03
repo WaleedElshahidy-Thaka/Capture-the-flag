@@ -73,10 +73,6 @@ public class HandlingValues
     [SerializeField, Min(0f)]
     public float repulseMaxHeightDifference = 3f;
 
-    [Header("Repulse Pulse: being shoved")]
-    [Tooltip("Multiplier on GripRate while a Repulse shove is carrying the car, so the push isn't scrubbed off by the tyres. Provisional.")]
-    public float ShoveGripMultiplier = 0.1f;
-
     [Header("Longitudinal")]
     public float TopSpeed = 22f;              // m/s, nominal ceiling under throttle alone
     public float Acceleration = 14f;          // m/s²
@@ -210,6 +206,10 @@ public class HandlingValues
     [Tooltip("Multiplier on steering authority while on Oil. Clamped above zero in code: steering authority is never zero (FD-04). Provisional.")]
     public float OilSteerAuthority = 0.6f;
 
+    [Header("Repulse Pulse: being shoved")]
+    [Tooltip("Multiplier on GripRate while a Repulse shove is carrying the car, so the push isn't scrubbed off by the tyres. Provisional.")]
+    public float ShoveGripMultiplier = 0.1f;
+
     // ─── Bots (FD-07) ──────────────────────────────────────────────────
     // FD-07 gives some values in ticks at 60 Hz; per FD-05 Glowtag authors them in seconds and
     // converts at use (12 ticks = 0.2 s, 90 ticks = 1.5 s). Values marked "not in FD-07" are provisional.
@@ -255,7 +255,15 @@ public class HandlingValues
     [SerializeField, Min(1f)]
     public float botRunDistance = 15f;
 
+    [Tooltip("Run mode: the target stops this far short of a wall (metres), so it's always inside the arena. Not in FD-07.")]
+    [SerializeField, Min(0f)]
+    public float botRunWallMargin = 3f;
+
+    [Tooltip("Run mode: a direction needs at least this much open floor (metres) to be worth running to; otherwise the bot tries the next one. Not in FD-07.")]
+    [SerializeField, Min(0.5f)]
+    public float botRunMinDistance = 6f;
+
     [Tooltip("Recover target: the arena centre, X and Z (FD-07). The default arena is centred on the origin.")]
-    public float botArenaCenterX = 0f;
-    public float botArenaCenterZ = 0f;
+    public float botArenaCenterX = 470f;
+    public float botArenaCenterZ = -420f;
 }

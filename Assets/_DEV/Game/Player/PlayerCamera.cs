@@ -99,8 +99,9 @@ public class PlayerCamera : MonoBehaviour
     void SoloView()
     {
         Vector3 focus = previewCar != null ? previewCar.position : LobbyLayout.SlotPosition(0);
-        transform.position = LobbyLayout.SoloCameraPosition(focus);
-        transform.rotation = LobbyLayout.SoloCameraRotation(focus);
+        Quaternion facing = previewCar != null ? previewCar.rotation : LobbyLayout.SlotRotation(0);
+        transform.position = LobbyLayout.SoloCameraPosition(focus, facing);
+        transform.rotation = LobbyLayout.SoloCameraRotation(focus, facing);
         initialized = false;
     }
 

@@ -108,7 +108,7 @@ public class PlayerLobbySpawner
             return;
         }
 
-        runner.Spawn(playerCarPrefab, LobbyLayout.SlotPosition(slot), LobbyLayout.SlotRotation, player,
+        runner.Spawn(playerCarPrefab, LobbyLayout.SlotPosition(slot), LobbyLayout.SlotRotation(slot), player,
             onBeforeSpawned: (r, obj) =>
             {
                 var state = obj.GetComponent<PlayerMatchState>();

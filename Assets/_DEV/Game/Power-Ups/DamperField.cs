@@ -28,7 +28,7 @@ public class DamperField : NetworkBehaviour
         // Damper Field is only useful for the Crown holder.
         CrownMatchState crown = CrownMatchState.Instance;
 
-        if (crown == null || !crown.IsHolder(Object))
+        if (crown == null /*|| !crown.IsHolder(Object)*/)// uncomment this line to restrict to Crown holders only
             return false;
 
         if (IsActive)
