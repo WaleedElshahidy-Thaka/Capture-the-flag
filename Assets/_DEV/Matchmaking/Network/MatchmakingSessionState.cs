@@ -4,9 +4,8 @@ using UnityEngine;
 
 // One per Quick Match session, spawned by the host. The host uses it to decide when the match
 // starts, from the replicated per-player state:
-//   6 searching                                  -> start, no bots
-//   2+ searching, shared timer >= 30 s, all ready -> start, bots fill the empty seats
-//   1 searching                                  -> only via PlayerMatchState.RPC_RequestStartWithBots
+//   the countdown reaches 0 (MatchStartRule)      -> start, bots fill the empty seats
+//   120 s for one player, 15 s less for each extra player in the lobby - full or not, solo or not
 // It also freezes the cars after a host migration until players are back, then resumes everyone
 // on the same tick.
 public class MatchmakingSessionState : NetworkBehaviour, IAfterHostMigration
@@ -80,27 +79,38 @@ public class MatchmakingSessionState : NetworkBehaviour, IAfterHostMigration
 
     // ─── Lobby ──────────────────────────────────────────────────────────
 
+    // Every case goes through the same countdown (MatchStartRule); a full lobby no longer starts
+    // instantly, it just has the shortest countdown.
     void TickLobby()
     {
         int searching = PlayerRoster.CountSearching();
+        if (searching == 0) return;
 
-        if (searching >= MatchmakingConfig.MaxPlayers)
-        {
-            TriggerStart(0);
-            return;
-        }
-
-        if (searching < 2)
+        if (searching == 1)
         {
             ResetLoneSearcher();
+
+            // Alone: your own timer, no players to take time off.
+            if (MatchStartRule.ShouldStart(LoneSearcherElapsedSeconds(), 1))
+                TriggerStart(MatchmakingConfig.MaxPlayers - 1);
             return;
         }
 
         MarkSearchersFound();
 
-        bool timerUnlocked = PlayerRoster.SharedElapsedSeconds() >= MatchmakingConfig.BotOptionUnlockSeconds;
-        if (PlayerRoster.AllSearchingReady() && timerUnlocked)
+        // Together: the lobby's shared timer, 15 s off for each player in the lobby after the first.
+        // Players still in their 3 s "joining" countdown count once they're in (as on screen).
+        int inLobby = Mathf.Max(1, PlayerRoster.CountInLobby());
+        if (MatchStartRule.ShouldStart(PlayerRoster.SharedElapsedSeconds(), inLobby))
             TriggerStart(MatchmakingConfig.MaxPlayers - searching);
+    }
+
+    static float LoneSearcherElapsedSeconds()
+    {
+        var players = PlayerRoster.Active;
+        for (int i = 0; i < players.Count; i++)
+            if (players[i].IsSearching) return players[i].SearchElapsedSeconds;
+        return 0f;
     }
 
     // A lone searcher's ready flag is meaningless and any countdown's partner has left.

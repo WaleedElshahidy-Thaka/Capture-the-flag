@@ -4,10 +4,17 @@ public static class MatchmakingConfig
     // A match always has six participants; bots fill empty seats (FD-07).
     public const int MaxPlayers = 6;
 
-    // Display ceiling of the search timer.
-    public const float SearchDurationSeconds = 120f;
+    // The match countdown: every match starts this many seconds after the search began (solo, a
+    // partial lobby or a full one), bots filling the empty seats. Also the search timer's ceiling.
+    public const float SearchDurationSeconds = 30f;
 
-    // The bot option ("start with computer players" / ready toggle) unlocks at this timer value.
+    // Seconds each extra player in the lobby takes off the countdown. 0 = the countdown is always
+    // 120 s; a full lobby of ready players starts at once instead (MatchStartRule).
+    // (Was 15: 1 player 120 s, 2 players 105 s ... 6 players 45 s.)
+    public const float SecondsOffPerExtraPlayer = 0f;
+
+    // Old rule, no longer used to start a match (MatchStartRule replaced it). The flow controller
+    // still uses it to name its phases.
     public const float BotOptionUnlockSeconds = 30f;
 
     // "Player found! Joining lobby in N".

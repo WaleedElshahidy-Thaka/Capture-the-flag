@@ -60,7 +60,7 @@ public class PowerUpCrateSpawner : MonoBehaviour
                     "[PowerUpCrateSpawner] A spawn point is missing.");
                 continue;
             }
-            Vector3 newPostion = new Vector3(point.position.x, 1 , point.position.z); // shift the crate up by 1 unit to avoid spawning inside the ground look flooting 
+            Vector3 newPostion = new Vector3(point.position.x, point.position.y , point.position.z); // shift the crate up by 1 unit to avoid spawning inside the ground look flooting 
             
             NetworkObject crate = runner.Spawn(
                 cratePrefab,

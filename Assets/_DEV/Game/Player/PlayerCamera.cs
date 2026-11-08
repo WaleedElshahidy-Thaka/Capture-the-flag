@@ -26,11 +26,21 @@ public class PlayerCamera : MonoBehaviour
     [SerializeField] float followSpring = 10f;
     [SerializeField] float reverseFollowThreshold = 2f; // m/s
 
+    [Header("Spin-out")]
+    [Tooltip("After a spin-out ends, the camera eases back behind the car this slowly (lower = gentler) " +
+             "instead of whipping round.")]
+    [SerializeField] float postSpinFollowSpring = 3f;
+    [Tooltip("How long the gentle catch-up lasts after a spin-out, in seconds.")]
+    [SerializeField] float postSpinSeconds = 0.6f;
+
     Vector3 followDirection = Vector3.forward;
     bool initialized;
     Mode mode = Mode.Solo;
     bool fading;
     PlayerMatchState boundPlayer;
+    PlayerMovement movement;     // our car, for its spin-out state
+    float spinEndedAt = -999f;
+    bool wasSpinning;
 
     bool InMatch => target != null && matchState != null && matchState.CanMove;
 
@@ -41,6 +51,7 @@ public class PlayerCamera : MonoBehaviour
         target = newTarget;
         view = newView != null ? newView : newTarget.transform;
         matchState = newMatchState;
+        movement = newMatchState != null ? newMatchState.GetComponent<PlayerMovement>() : null;
         initialized = false;
     }
 
@@ -75,8 +86,12 @@ public class PlayerCamera : MonoBehaviour
         Mode desired = DesiredMode();
         if (desired == mode) return;
 
-        // Only the Solo <-> Lobby cut fades; gaining or losing the car switches at once.
+        // The Solo <-> Lobby cut fades, and so does coming back from a finished match (Play Again):
+        // the match view fades to black and opens on your preview robot. Gaining the car at match
+        // start switches at once.
         bool lobbySideCut = (mode == Mode.Solo && desired == Mode.Lobby) || (mode == Mode.Lobby && desired == Mode.Solo);
+        bool backToLobby = (mode == Mode.Hold || mode == Mode.Follow) && (desired == Mode.Solo || desired == Mode.Lobby);
+        lobbySideCut |= backToLobby;
         if (!lobbySideCut || fade == null)
         {
             mode = desired;
@@ -91,7 +106,12 @@ public class PlayerCamera : MonoBehaviour
     Mode DesiredMode()
     {
         if (InMatch) return Mode.Follow;
-        if (target == null && (mode == Mode.Follow || mode == Mode.Hold)) return Mode.Hold;
+
+        // Our car vanished: hold the last view only while still in the match (a host migration is
+        // about to give it back). Back in the lobby (Play Again), go to the lobby views - otherwise
+        // the camera stayed frozen on the old match until the next car spawned.
+        bool inLobby = flow != null && flow.Phase.IsPreMatch();
+        if (!inLobby && target == null && (mode == Mode.Follow || mode == Mode.Hold)) return Mode.Hold;
         bool solo = flow == null || flow.IsSoloView;
         return solo ? Mode.Solo : Mode.Lobby;
     }
@@ -117,10 +137,19 @@ public class PlayerCamera : MonoBehaviour
 
     void FollowView()
     {
-        Vector3 desired = DesiredFollowDirection();
+        // Spin-out: the car whirls, the camera doesn't. It keeps looking the way it was looking, and
+        // when the spin ends it eases back behind the car gently rather than snapping round.
+        bool spinning = movement != null && movement.IsSpinningOut;
+        if (wasSpinning && !spinning) spinEndedAt = Time.time;
+        wasSpinning = spinning;
 
-        float alpha = 1f - Mathf.Exp(-followSpring * Time.deltaTime);
-        followDirection = initialized ? Vector3.Slerp(followDirection, desired, alpha) : desired;
+        Vector3 desired = spinning && initialized ? followDirection : DesiredFollowDirection();
+
+        bool recovering = Time.time - spinEndedAt < postSpinSeconds;
+        float turnSpring = recovering ? postSpinFollowSpring : followSpring;
+        float turnAlpha = 1f - Mathf.Exp(-turnSpring * Time.deltaTime);
+        float alpha = 1f - Mathf.Exp(-followSpring * Time.deltaTime); // position keeps up with the car as usual
+        followDirection = initialized ? Vector3.Slerp(followDirection, desired, turnAlpha) : desired;
         initialized = true;
 
         Vector3 pivot = view.position + Vector3.up * height;

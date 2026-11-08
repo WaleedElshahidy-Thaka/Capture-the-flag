@@ -3,7 +3,7 @@ using System.Collections;
 using UnityEngine;
 
 // Offline fake for UI work: always exactly one player, so it exercises the solo path
-// (Quick Match -> 30 s -> "start with computer players") without any network.
+// (READY -> 120 s countdown -> start with bots) without any network.
 // Select it in MatchmakingServices.
 public class QuickMatchLocalService : IQuickMatchService
 {
@@ -67,7 +67,19 @@ public class QuickMatchLocalService : IQuickMatchService
             Changed?.Invoke();
         }
 
-        public bool MatchStarting => matchStarting;
+        // Same rule as the host: alone, the match starts when the countdown reaches 0.
+        public bool MatchStarting
+        {
+            get
+            {
+                if (!matchStarting && IsSearching && MatchStartRule.ShouldStart(ElapsedSeconds, 1))
+                {
+                    botCount = MaxPlayers - PlayerCount;
+                    matchStarting = true;
+                }
+                return matchStarting;
+            }
+        }
         public int BotCount => botCount;
 
         public event Action Changed;

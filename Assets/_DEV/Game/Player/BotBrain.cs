@@ -29,6 +29,14 @@ public sealed class BotBrain : NetworkBehaviour
     [Networked] private int RetargetTicksRemaining { get; set; }
     [Networked] private int StuckTicks { get; set; }
     [Networked] private int RecoverTicksRemaining { get; set; }
+    // Avoidance: the side (+1 right, -1 left) chosen when a wall first appeared, kept until the
+    // whiskers are clear. Stops the bot flip-flopping when all three see the same wall.
+    [Networked] private int AvoidSide { get; set; }
+    // Ticks spent nose-close to a wall and nearly stopped.
+    [Networked] private int BlockedTicks { get; set; }
+    // Back-off manoeuvre: reverse with opposite lock for this many ticks, then drive on.
+    [Networked] private int BackOffTicksRemaining { get; set; }
+    [Networked] private int BackOffSide { get; set; }
 
     static HandlingValues Values => HandlingValuesProvider.Current;
 
@@ -77,16 +85,45 @@ public sealed class BotBrain : NetworkBehaviour
             RetargetTicksRemaining = Mathf.Max(1, Mathf.RoundToInt(v.botReactionSeconds * tickRate));
         }
 
+        // Backing off a wall: reverse with the wheel turned the OTHER way. Steering flips in reverse
+        // (SteeringModel), so this swings the nose toward BackOffSide; when it ends, the bot drives
+        // off toward that side with the wall beside it rather than in front.
+        if (BackOffTicksRemaining > 0)
+        {
+            BackOffTicksRemaining--;
+            StuckTicks = 0; // slow on purpose while backing off - not stuck
+            BlockedTicks = 0;
+            return MakeInput(-1f, -BackOffSide);
+        }
+
         Vector3 forward = FlatForward();
         float steer = SteerToward(TargetPoint, forward, v);
 
         // Whiskers override the target for this tick only.
-        if (TryAvoid(forward, v, out float avoidSteer))
+        if (TryAvoid(forward, v, out float avoidSteer, out bool noseBlocked))
             steer = avoidSteer;
 
+        // Nose against a wall and nearly stopped: steering can't help - the car has no steering
+        // authority at a standstill - so back off instead of waiting for the 1.5 s stuck timer.
+        if (v.botAllowBackOff && noseBlocked && FlatSpeed() < v.botStuckSpeed && CanDrive())
+        {
+            BlockedTicks++;
+            if (BlockedTicks >= Mathf.Max(1, Mathf.RoundToInt(v.botBlockedSeconds * tickRate)))
+                StartBackOff(v, tickRate);
+        }
+        else
+        {
+            BlockedTicks = 0;
+        }
+
+        return MakeInput(1f, steer); // throttle always held while driving forward
+    }
+
+    PlayerNetInput MakeInput(float throttle, float steer)
+    {
         return new PlayerNetInput
         {
-            ThrottleAxis = 1f,  // always held
+            ThrottleAxis = throttle,
             SteerAxis = steer,
             Boost = false,      // never
             Drift = false,
@@ -102,17 +139,15 @@ public sealed class BotBrain : NetworkBehaviour
     void UpdateRecover(PlayerMovement car, HandlingValues v, int tickRate)
     {
         // Parked for the countdown (or after the buzzer) isn't stuck.
-        bool driving = matchState != null && matchState.CanMove && MatchTimerState.AllowsDriving;
-        if (!driving)
+        if (!CanDrive())
         {
             StuckTicks = 0;
+            BlockedTicks = 0;
+            BackOffTicksRemaining = 0;
             return;
         }
 
-        Vector3 velocity = body.linearVelocity;
-        float flatSpeed = new Vector2(velocity.x, velocity.z).magnitude;
-
-        StuckTicks = flatSpeed < v.botStuckSpeed ? StuckTicks + 1 : 0;
+        StuckTicks = FlatSpeed() < v.botStuckSpeed ? StuckTicks + 1 : 0;
 
         int stuckLimit = Mathf.Max(1, Mathf.RoundToInt(v.botStuckSeconds * tickRate));
         bool spunOut = car.IsSpinningOut;
@@ -124,6 +159,11 @@ public sealed class BotBrain : NetworkBehaviour
                 SetMode(BotMode.Recover);
                 RetargetTicksRemaining = 0; // pick the centre right away
             }
+
+            // Stuck (not spun out): whatever pinned it - a wall, a corner, another car - driving
+            // forward into it again won't help. Back off first, then head for the centre.
+            if (!spunOut && v.botAllowBackOff && BackOffTicksRemaining <= 0)
+                StartBackOff(v, tickRate);
 
             StuckTicks = 0;
             RecoverTicksRemaining = Mathf.Max(1, Mathf.RoundToInt(v.botRecoverSeconds * tickRate));
@@ -328,9 +368,14 @@ public sealed class BotBrain : NetworkBehaviour
 
     // Three short whiskers. Only static walls count: cars are what a bot is trying to hit, and
     // slopes (normal pointing up) are drivable ramps, not obstacles.
-    bool TryAvoid(Vector3 forward, HandlingValues v, out float steer)
+    //
+    // The turn side is chosen once, when a wall first appears, and kept until all three whiskers are
+    // clear. Re-choosing every tick made a bot facing a wall head-on flip left/right as the
+    // distances wobbled, so it never committed to either and sat there.
+    bool TryAvoid(Vector3 forward, HandlingValues v, out float steer, out bool noseBlocked)
     {
         steer = 0f;
+        noseBlocked = false;
         float length = chassisLength * v.botWhiskerChassisLengths;
         Vector3 origin = transform.position + Vector3.up * 0.5f;
 
@@ -342,19 +387,51 @@ public sealed class BotBrain : NetworkBehaviour
         bool rightHit = Whisker(origin, rightDir, length, out float rightDist);
 
         lastLeftDir = leftDir;
-        lastForwardDir = forward; 
+        lastForwardDir = forward;
         lastRightDir = rightDir;
         lastWhiskerLength = length;
         lastAvoiding = leftHit || forwardHit || rightHit;
 
-        if (!lastAvoiding) return false;
+        if (!lastAvoiding)
+        {
+            AvoidSide = 0; // clear: release the latch
+            return false;
+        }
 
-        if (leftHit && !rightHit && !forwardHit) steer = 1f;        // wall on the left: go right
-        else if (rightHit && !leftHit && !forwardHit) steer = -1f;  // wall on the right: go left
-        else if (Mathf.Approximately(leftDist, rightDist)) steer = AimErrorSign(); // dead ahead: fixed side
-        else steer = leftDist > rightDist ? -1f : 1f;               // turn toward the freer side
+        noseBlocked = forwardHit && forwardDist < chassisLength * v.botBlockedDistanceChassisLengths;
 
+        if (AvoidSide == 0)
+        {
+            if (leftHit && !rightHit && !forwardHit) AvoidSide = 1;        // wall on the left: go right
+            else if (rightHit && !leftHit && !forwardHit) AvoidSide = -1;  // wall on the right: go left
+            else if (Mathf.Abs(leftDist - rightDist) < 0.25f)               // square-on: prefer the target's side
+                AvoidSide = TargetSide(forward);
+            else AvoidSide = leftDist > rightDist ? -1 : 1;                 // turn toward the freer side
+        }
+
+        steer = AvoidSide;
         return true;
+    }
+
+    // Which side the target is on (+1 right, -1 left); the fixed per-bot side if it's dead ahead or behind.
+    int TargetSide(Vector3 forward)
+    {
+        Vector3 toTarget = TargetPoint - transform.position;
+        toTarget.y = 0f;
+        float angle = Vector3.SignedAngle(forward, toTarget, Vector3.up);
+        if (Mathf.Abs(angle) < 5f || Mathf.Abs(angle) > 175f) return (int)AimErrorSign();
+        return angle > 0f ? 1 : -1;
+    }
+
+    void StartBackOff(HandlingValues v, int tickRate)
+    {
+        // Turn toward the side avoidance already picked; otherwise toward the target.
+        BackOffSide = AvoidSide != 0 ? AvoidSide : TargetSide(FlatForward());
+        AvoidSide = BackOffSide; // and keep turning that way once moving forward again
+        BackOffTicksRemaining = Mathf.Max(1, Mathf.RoundToInt(v.botBackOffSeconds * tickRate));
+        BlockedTicks = 0;
+        StuckTicks = 0;
+        if (logModeChanges) Debug.Log($"[Bot] {name}: backing off, turning {(BackOffSide > 0 ? "right" : "left")}");
     }
 
     bool Whisker(Vector3 origin, Vector3 direction, float length, out float distance)
@@ -380,6 +457,14 @@ public sealed class BotBrain : NetworkBehaviour
     // ───────────────────────────── helpers ──────────────────────────────
 
     bool HasItem() => inventory != null && inventory.HasItem;
+
+    bool CanDrive() => matchState != null && matchState.CanMove && MatchTimerState.AllowsDriving;
+
+    float FlatSpeed()
+    {
+        Vector3 velocity = body.linearVelocity;
+        return new Vector2(velocity.x, velocity.z).magnitude;
+    }
 
     float AimErrorSign() => (Object.Id.Raw & 1) == 0 ? 1f : -1f;
 
@@ -438,7 +523,7 @@ public sealed class BotBrain : NetworkBehaviour
             Gizmos.DrawRay(origin, lastRunDirection * 2f); // the direction Run picked
         }
 
-        Gizmos.color = lastAvoiding ? Color.red : Color.gray;
+        Gizmos.color = BackOffTicksRemaining > 0 ? new Color(1f, 0.5f, 0f) : lastAvoiding ? Color.red : Color.gray;
         Gizmos.DrawRay(origin, lastLeftDir * lastWhiskerLength);
         Gizmos.DrawRay(origin, lastForwardDir * lastWhiskerLength);
         Gizmos.DrawRay(origin, lastRightDir * lastWhiskerLength);

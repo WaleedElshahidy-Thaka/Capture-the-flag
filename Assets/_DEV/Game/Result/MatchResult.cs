@@ -10,6 +10,7 @@ public class MatchResultEntry
     public int score;
     public bool isBot;
     public bool isLocal;
+    public int slot; // seat, for the seat colour on the results board (SeatPalette)
 }
 
 // Final standings of one match, built from the replicated car state on each peer.
@@ -43,11 +44,13 @@ public class MatchResult
                 name = name,
                 score = p.Score,
                 isBot = p.IsBot,
-                isLocal = p.Object.HasInputAuthority
+                isLocal = p.Object.HasInputAuthority,
+                slot = p.Slot
             });
         }
 
-        result.entries.Sort((a, b) => b.score.CompareTo(a.score));
+        // Highest score first; equal scores keep seat order, so every peer lists them the same way.
+        result.entries.Sort((a, b) => b.score != a.score ? b.score.CompareTo(a.score) : a.slot.CompareTo(b.slot));
 
         if (result.entries.Count > 0)
         {

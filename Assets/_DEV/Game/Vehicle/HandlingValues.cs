@@ -22,7 +22,7 @@ public class HandlingValues
     public float minimumApproachSpeed = 1.5f; //m/s, below this speed, no contact is considered an impact
 
     [SerializeField, Min(0f)]
-    public float aggressorAdvantage = 1.0f;//m/s, if the other car is not at least this much more responsible for closing the gap, no aggressor is assigned
+    public float aggressorAdvantage = 1f;//m/s, if the other car is not at least this much more responsible for closing the gap, no aggressor is assigned
 
     [SerializeField, Min(0f)]
     public float minimumContactNormalAlignment = 0.15f;//cosine of angle between contact normal and the line connecting the two cars' centers of mass. Below this, no aggressor is assigned.
@@ -63,7 +63,7 @@ public class HandlingValues
 
     [Tooltip("Velocity change (m/s) given to every car in range, away from the user. Equal for all - not scaled by distance.")]
     [SerializeField, Min(0f)]
-    public float repulseShoveSpeed = 9f;
+    public float repulseShoveSpeed = 11.25f;
 
     [Tooltip("Seconds a shoved car has reduced grip (ShoveGripMultiplier) and can't be an aggressor.")]
     [SerializeField, Min(0f)]
@@ -77,10 +77,10 @@ public class HandlingValues
     public float TopSpeed = 22f;              // m/s, nominal ceiling under throttle alone
     public float Acceleration = 14f;          // m/s²
     public float BrakeStrength = 26f;         // m/s²
-    public float CoastDrag = 5f;              // m/s², off throttle
+    public float CoastDrag = 4f;              // m/s², off throttle
     public float ReverseTopSpeed = 8f;        // m/s
     public float ReverseDelay = 0.35f;        // s, brake held at rest before reverse engages
-    public float OverspeedDecay = 3f;         // m/s², how fast speed above TopSpeed falls back
+    public float OverspeedDecay = 1.8f;         // m/s², how fast speed above TopSpeed falls back
 
     [Header("Boost")]
     [Tooltip("Boost speed multiplier the drive model reads while its Boost input is set. PlayerMovement overwrites it " +
@@ -89,20 +89,20 @@ public class HandlingValues
     public float BoostMultiplier = 1.8f;      // raises target speed; no clamp at TopSpeed
 
     [Header("Steering")]
-    public float MaxYawRate = 110f;           // deg/s
-    public float SteerResponse = 0.18f;       // s, time to reach target yaw rate
+    public float MaxYawRate = 120f;           // deg/s
+    public float SteerResponse = 0.12f;       // s, time to reach target yaw rate
     [Tooltip("Yaw authority vs |speed| / TopSpeed. Zero at a standstill (no pivoting in place).")]
     public AnimationCurve SpeedScalingCurve = new AnimationCurve(
-        new Keyframe(0f, 0f, 0f, 5f),
-        new Keyframe(0.2f, 1f, 5f, -0.1875f),
-        new Keyframe(1f, 0.85f, -0.1875f, 0f));
+        new Keyframe(0f, 0f, 0f, 13.333333f),
+        new Keyframe(0.075f, 1f, 13.333333f, -0.27027027f),
+        new Keyframe(1f, 0.75f, -0.27027027f, 0f));
 
     [Header("Lateral")]
     [Tooltip("Sideways speed decay per second: exp(-rate * dt). ~20 = grippy.")]
-    public float GripRate = 20f;
+    public float GripRate = 23f;
     [Tooltip("OBSOLETE: the Left Ctrl grip button is not in the Driving Foundation. PlayerMovement no longer " +
              "passes the Drift input to the drive model. Sliding grip is GripRate x DriftGripMultiplier.")]
-    public float DriftGripRate = 3f;
+    public float DriftGripRate = 2.8f;
 
     [Header("Airborne")]
     [Tooltip("Multiplier on gravity (the suspension carries the car while grounded).")]
@@ -154,7 +154,7 @@ public class HandlingValues
     [Tooltip("Momentum transfer in car-vs-car contact. Not used yet.")]
     public float Mass = 1f;
     [Tooltip("Steering response multiplier. Never written to the Rigidbody's inertia tensor.")]
-    public float Inertia = 1f;
+    public float Inertia = 0.9f;
 
     // ─── Layer C: Drift & Boost (doc 04) ────────────────────────────────
     // PROVISIONAL values from "Glowtag Drift, Boost & Overdrive: Implementation Answers v0.1".
@@ -164,12 +164,12 @@ public class HandlingValues
     public float DriftMinSpeed = 6f;               // m/s
     public int HopTicks = 12;                      // ~0.2 s at 60 Hz
     [Tooltip("(mine) Upward m/s given at hop start. Tune so the hop lasts about HopTicks.")]
-    public float HopVelocity = 1.2f;
+    public float HopVelocity = 1.4f;
     [Tooltip("(mine) Steer needed at landing to commit a drift.")]
     public float SteerCommitDeadzone = 0.2f;
     [Tooltip("Units/tick at optimal slip. Race value; Glowtag overrides back to it. Range 0-2.5.")]
-    public float ReserveGainRate = 1f;
-    public float OptimalSlipAngle = 22f;           // degrees
+    public float ReserveGainRate = 1.9f;
+    public float OptimalSlipAngle = 24f;           // degrees
     [Tooltip("(mine) Slip angle at which charge bottoms out.")]
     public float MaxSlipAngle = 60f;
     [Tooltip("(mine) Charge scale at ~zero speed; the doc says speed 'scales mildly'.")]
@@ -181,10 +181,10 @@ public class HandlingValues
     [Header("Drift & Boost: window and boost")]
     [Tooltip("~0.4 s at 60 Hz, range 10-45. The accessibility dial.")]
     public int WindowTicks = 24;
-    public float Stage1BoostMultiplier = 1.12f;
+    public float Stage1BoostMultiplier = 1.18f;
     [Tooltip("Overdrive uses this stage.")]
-    public float Stage2BoostMultiplier = 1.22f;
-    public float Stage3BoostMultiplier = 1.35f;
+    public float Stage2BoostMultiplier = 1.32f;
+    public float Stage3BoostMultiplier = 1.5f;
     public int BoostTicks = 45;                    // ~0.75 s
     public int ChainGraceTicks = 30;               // ~0.5 s
     [Tooltip("Applies only while the aggressor is Boosting or Chained. Range 1.0-2.5.")]
@@ -192,9 +192,9 @@ public class HandlingValues
 
     [Header("Drift & Boost: sliding handling")]
     [Tooltip("Multiplier on GripRate while Sliding. Automatic, not a button.")]
-    public float DriftGripMultiplier = 0.45f;
+    public float DriftGripMultiplier = 0.38f;
     [Tooltip("Multiplier on MaxYawRate while Sliding (Arena preset value).")]
-    public float DriftRotationAuthority = 1.35f;
+    public float DriftRotationAuthority = 1.16f;
 
     // ─── Surfaces (Handling Profiles) ───────────────────────────────────
     // Untagged geometry is Default (FD-06). Oil only exists as runtime patches from the Oil Slick
@@ -202,9 +202,9 @@ public class HandlingValues
 
     [Header("Surface: Oil")]
     [Tooltip("Multiplier on GripRate while the probe majority is on Oil. Low = the car keeps sliding the way it was going. Provisional.")]
-    public float OilGripMultiplier = 0.15f;
+    public float OilGripMultiplier = 0.056f;
     [Tooltip("Multiplier on steering authority while on Oil. Clamped above zero in code: steering authority is never zero (FD-04). Provisional.")]
-    public float OilSteerAuthority = 0.6f;
+    public float OilSteerAuthority = 0.4f;
 
     [Header("Repulse Pulse: being shoved")]
     [Tooltip("Multiplier on GripRate while a Repulse shove is carrying the car, so the push isn't scrubbed off by the tyres. Provisional.")]
@@ -263,7 +263,24 @@ public class HandlingValues
     [SerializeField, Min(0.5f)]
     public float botRunMinDistance = 6f;
 
+    // Back-off is a deliberate exception to FD-07's "brake: never used". A car nose-first against a
+    // wall has no steering at a standstill, so driving forward can never get it out.
+    [Tooltip("Let bots reverse away from a wall they're stuck against. Exception to FD-07 (brake never used) - turn off to test the doc as written.")]
+    public bool botAllowBackOff = true;
+
+    [Tooltip("A wall closer than this ahead (in chassis lengths) counts as nose-blocked.")]
+    [SerializeField, Min(0.1f)]
+    public float botBlockedDistanceChassisLengths = 0.75f;
+
+    [Tooltip("Nose-blocked and nearly stopped this long (seconds) = back off. Much quicker than the stuck timer.")]
+    [SerializeField, Min(0.05f)]
+    public float botBlockedSeconds = 0.3f;
+
+    [Tooltip("How long a back-off reverses (seconds). Must be longer than ReverseDelay, or the car never actually reverses.")]
+    [SerializeField, Min(0.1f)]
+    public float botBackOffSeconds = 1f;
+
     [Tooltip("Recover target: the arena centre, X and Z (FD-07). The default arena is centred on the origin.")]
-    public float botArenaCenterX = 470f;
-    public float botArenaCenterZ = -420f;
+    public float botArenaCenterX = -235f;
+    public float botArenaCenterZ = -56f;
 }
