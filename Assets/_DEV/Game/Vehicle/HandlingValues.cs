@@ -280,7 +280,28 @@ public class HandlingValues
     [SerializeField, Min(0.1f)]
     public float botBackOffSeconds = 1f;
 
+    // ─── Bots: NavMesh routing ───────────────────────────────────────
+    // Bots route around walls with the arena's baked NavMesh; they still drive with throttle and steer.
+
+    [Tooltip("Route with the baked NavMesh. Off = steer straight at the target (the original FD-07 bot).")]
+    public bool botUseNavMesh = true;
+
+    [Tooltip("NavMesh agent type the arena was baked for (e.g. \"Car\"). Empty = the first one with a NavMesh under the bot.")]
+    public string botNavAgentType = "";
+
+    [Tooltip("How far a point may be from the NavMesh and still be snapped onto it (metres) - the Crown floats, cars jump.")]
+    [SerializeField, Min(0.1f)]
+    public float botNavSnapDistance = 3f;
+
+    [Tooltip("Within this distance (metres) a route corner counts as reached and the bot heads for the next.")]
+    [SerializeField, Min(0.1f)]
+    public float botNavCornerReachDistance = 2f;
+
+    [Tooltip("Starts turning toward the following corner this far before reaching a corner (metres), so it doesn't overshoot. 0 = off.")]
+    [SerializeField, Min(0f)]
+    public float botNavLookAhead = 4f;
+
     [Tooltip("Recover target: the arena centre, X and Z (FD-07). The default arena is centred on the origin.")]
-    public float botArenaCenterX = -235f;
-    public float botArenaCenterZ = -56f;
+    public float botArenaCenterX = 0f;
+    public float botArenaCenterZ = 0f;
 }

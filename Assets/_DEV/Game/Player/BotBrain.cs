@@ -1,5 +1,6 @@
 using Fusion;
 using UnityEngine;
+using UnityEngine.AI;
 
 // The FD-07 bot: a three-state decision layer that produces one PlayerNetInput per tick.
 // Host only - BotDriver calls Think from PlayerMovement for cars with no player.
@@ -82,6 +83,7 @@ public sealed class BotBrain : NetworkBehaviour
         if (RetargetTicksRemaining <= 0)
         {
             Retarget(car, v);
+            RebuildPath(v); // route to the new target around the walls (NavMesh)
             RetargetTicksRemaining = Mathf.Max(1, Mathf.RoundToInt(v.botReactionSeconds * tickRate));
         }
 
@@ -97,7 +99,8 @@ public sealed class BotBrain : NetworkBehaviour
         }
 
         Vector3 forward = FlatForward();
-        float steer = SteerToward(TargetPoint, forward, v);
+        // Steer at the next corner of the NavMesh route; straight at the target when there's no route.
+        float steer = SteerToward(NavSteerPoint(v), forward, v);
 
         // Whiskers override the target for this tick only.
         if (TryAvoid(forward, v, out float avoidSteer, out bool noseBlocked))
@@ -474,6 +477,141 @@ public sealed class BotBrain : NetworkBehaviour
         return forward.sqrMagnitude > 0.0001f ? forward.normalized : Vector3.forward;
     }
 
+    // ───────────────────────────── NavMesh routing ──────────────────────
+    //
+    // The NavMesh only answers "which way?" - the bot still drives with throttle and steer through
+    // the same pipeline as players (FD-07). A route is calculated when the bot re-decides (every
+    // botReactionSeconds), not every tick. Host-only and local: nothing here is networked - after a
+    // host migration the next re-decide simply builds a fresh route.
+    //
+    // No NavMesh baked, no route found, or the bot is off the mesh (mid-jump): the bot steers
+    // straight at its target as before, and the whiskers keep it off the walls.
+
+    NavMeshPath navPath;
+    readonly Vector3[] corners = new Vector3[32];
+    int cornerCount;
+    int cornerIndex;
+    bool hasRoute;
+
+    // The NavMesh agent type the arena was baked for (the car-sized one), found once and shared.
+    static int navAgentTypeId = -1;
+    static bool navAgentWarned;
+
+    void RebuildPath(HandlingValues v)
+    {
+        hasRoute = false;
+        if (!v.botUseNavMesh || !TryGetAgentType(v, transform.position)) return;
+
+        var filter = new NavMeshQueryFilter { agentTypeID = navAgentTypeId, areaMask = NavMesh.AllAreas };
+
+        if (!NavMesh.SamplePosition(transform.position, out NavMeshHit start, v.botNavSnapDistance, filter)) return;
+        if (!TrySampleGoal(TargetPoint, v, filter, out Vector3 goal)) return;
+
+        navPath ??= new NavMeshPath();
+        if (!NavMesh.CalculatePath(start.position, goal, filter, navPath)) return;
+        if (navPath.status == NavMeshPathStatus.PathInvalid) return;
+        // PathPartial is fine: it gets as close as the mesh allows, then the bot steers direct.
+
+        cornerCount = navPath.GetCornersNonAlloc(corners);
+        if (cornerCount < 2) return;
+
+        cornerIndex = 1; // corner 0 is where we already are
+        hasRoute = true;
+    }
+
+    // Targets aren't always on the floor: the Crown floats, the arena centre has no height, a car
+    // can be mid-jump. Snap near the point first, then at our own height, a little wider.
+    bool TrySampleGoal(Vector3 point, HandlingValues v, NavMeshQueryFilter filter, out Vector3 goal)
+    {
+        goal = point;
+        if (NavMesh.SamplePosition(point, out NavMeshHit hit, v.botNavSnapDistance, filter))
+        {
+            goal = hit.position;
+            return true;
+        }
+
+        Vector3 level = new Vector3(point.x, transform.position.y, point.z);
+        if (NavMesh.SamplePosition(level, out hit, v.botNavSnapDistance * 3f, filter))
+        {
+            goal = hit.position;
+            return true;
+        }
+        return false;
+    }
+
+    // Where to steer this tick: the next corner, blending toward the one after it as we get close,
+    // so the car starts turning early instead of overshooting (a car can't stop and pivot).
+    Vector3 NavSteerPoint(HandlingValues v)
+    {
+        if (!hasRoute) return TargetPoint;
+
+        Vector3 position = transform.position;
+        while (cornerIndex < cornerCount - 1 &&
+               FlatDistance(position, corners[cornerIndex]) < v.botNavCornerReachDistance)
+            cornerIndex++;
+
+        // Heading for the last corner = the target itself: aim at the live target point.
+        if (cornerIndex >= cornerCount - 1) return TargetPoint;
+
+        Vector3 corner = corners[cornerIndex];
+        Vector3 next = corners[cornerIndex + 1];
+        float distance = FlatDistance(position, corner);
+
+        if (v.botNavLookAhead > 0f && distance < v.botNavLookAhead)
+        {
+            float t = 1f - distance / v.botNavLookAhead;
+            return Vector3.Lerp(corner, next, t * 0.5f);
+        }
+        return corner;
+    }
+
+    static float FlatDistance(Vector3 a, Vector3 b)
+    {
+        float dx = a.x - b.x, dz = a.z - b.z;
+        return Mathf.Sqrt(dx * dx + dz * dz);
+    }
+
+    // Uses the agent type named in botNavAgentType; if that's empty, the first agent type that has a
+    // NavMesh under the bot - so a car-sized agent type works without any setup.
+    static bool TryGetAgentType(HandlingValues v, Vector3 probe)
+    {
+        if (navAgentTypeId >= 0) return true;
+
+        int count = NavMesh.GetSettingsCount();
+        for (int i = 0; i < count; i++)
+        {
+            int id = NavMesh.GetSettingsByIndex(i).agentTypeID;
+            if (!string.IsNullOrEmpty(v.botNavAgentType) && NavMesh.GetSettingsNameFromID(id) == v.botNavAgentType)
+            {
+                navAgentTypeId = id;
+                return true;
+            }
+        }
+
+        if (string.IsNullOrEmpty(v.botNavAgentType))
+        {
+            for (int i = 0; i < count; i++)
+            {
+                int id = NavMesh.GetSettingsByIndex(i).agentTypeID;
+                var filter = new NavMeshQueryFilter { agentTypeID = id, areaMask = NavMesh.AllAreas };
+                if (NavMesh.SamplePosition(probe, out _, 5f, filter))
+                {
+                    navAgentTypeId = id;
+                    Debug.Log($"[Bot] Using NavMesh agent type '{NavMesh.GetSettingsNameFromID(id)}'.");
+                    return true;
+                }
+            }
+        }
+
+        if (!navAgentWarned)
+        {
+            navAgentWarned = true;
+            Debug.LogWarning("[Bot] No NavMesh found for the bots - they steer straight at targets. " +
+                             "Bake a NavMeshSurface on the arena, or check botNavAgentType.");
+        }
+        return false;
+    }
+
     static Vector3 ArenaCenter(HandlingValues v) => new Vector3(v.botArenaCenterX, 0f, v.botArenaCenterZ);
 
     void SetMode(BotMode mode)
@@ -517,6 +655,18 @@ public sealed class BotBrain : NetworkBehaviour
         Gizmos.DrawLine(origin, TargetPoint);
         Gizmos.DrawWireSphere(TargetPoint, 0.5f);
 
+        // The NavMesh route: white, from the current corner on.
+        if (hasRoute)
+        {
+            Gizmos.color = Color.white;
+            Vector3 from = transform.position;
+            for (int i = cornerIndex; i < cornerCount; i++)
+            {
+                Gizmos.DrawLine(from + Vector3.up * 0.3f, corners[i] + Vector3.up * 0.3f);
+                from = corners[i];
+            }
+        }
+
         if (Mode == BotMode.Run && lastRunDirection != Vector3.zero)
         {
             Gizmos.color = Color.green;
@@ -536,5 +686,7 @@ public sealed class BotBrain : NetworkBehaviour
         dataCrown = null;
         lastWorldRefreshTick = 0;
         worldEverRefreshed = false;
+        navAgentTypeId = -1;
+        navAgentWarned = false;
     }
 }

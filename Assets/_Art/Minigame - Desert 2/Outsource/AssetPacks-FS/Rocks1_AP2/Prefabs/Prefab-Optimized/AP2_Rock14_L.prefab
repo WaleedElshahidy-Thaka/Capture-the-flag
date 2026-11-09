@@ -10,6 +10,7 @@ GameObject:
   m_Component:
   - component: {fileID: 441302746037525367}
   - component: {fileID: 4631333377397894150}
+  - component: {fileID: 6915346131211097956}
   m_Layer: 0
   m_Name: AP2_Rock14_L
   m_TagString: Untagged
@@ -57,6 +58,26 @@ LODGroup:
     renderers:
     - renderer: {fileID: 3261499276655364761}
   m_Enabled: 1
+--- !u!114 &6915346131211097956
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 960395021377913293}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1e3fdca004f2d45fe8abbed571a8abd5, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Unity.AI.Navigation::Unity.AI.Navigation.NavMeshModifier
+  m_SerializedVersion: 0
+  m_OverrideArea: 0
+  m_Area: 0
+  m_OverrideGenerateLinks: 0
+  m_GenerateLinks: 0
+  m_IgnoreFromBuild: 1
+  m_ApplyToChildren: 1
+  m_AffectedAgents: ffffffff
 --- !u!1 &1040550212144174589
 GameObject:
   m_ObjectHideFlags: 0
