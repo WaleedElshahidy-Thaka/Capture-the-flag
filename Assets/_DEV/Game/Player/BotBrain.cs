@@ -95,16 +95,30 @@ public sealed class BotBrain : NetworkBehaviour
             BackOffTicksRemaining--;
             StuckTicks = 0; // slow on purpose while backing off - not stuck
             BlockedTicks = 0;
+            if (BackOffTicksRemaining == 0) repathNow = true; // fresh route from where we ended up
             return MakeInput(-1f, -BackOffSide);
         }
 
-        Vector3 forward = FlatForward();
-        // Steer at the next corner of the NavMesh route; straight at the target when there's no route.
-        float steer = SteerToward(NavSteerPoint(v), forward, v);
+        // Off the route (pushed, bumped, backed off): route again now rather than at the next re-decide.
+        if (repathNow)
+        {
+            repathNow = false;
+            RebuildPath(v);
+        }
 
-        // Whiskers override the target for this tick only.
+        Vector3 forward = FlatForward();
+        // Follow the NavMesh route; straight at the target when there's no route.
+        Vector3 steerPoint = PursuitPoint(v);
+        lastPursuitPoint = steerPoint;
+        float steer = SteerToward(steerPoint, forward, v);
+        float throttle = CornerThrottle(steerPoint, forward, v);
+
+        // Whiskers override the route for this tick only.
         if (TryAvoid(forward, v, out float avoidSteer, out bool noseBlocked))
+        {
             steer = avoidSteer;
+            throttle = Mathf.Min(throttle, v.botNavCornerThrottle); // ease off while dodging a wall
+        }
 
         // Nose against a wall and nearly stopped: steering can't help - the car has no steering
         // authority at a standstill - so back off instead of waiting for the 1.5 s stuck timer.
@@ -119,7 +133,26 @@ public sealed class BotBrain : NetworkBehaviour
             BlockedTicks = 0;
         }
 
-        return MakeInput(1f, steer); // throttle always held while driving forward
+        return MakeInput(throttle, steer);
+    }
+
+    // FD-07 holds the throttle down always. Following a real route, that sends the car wide on every
+    // sharp corner and into the wall - it can't turn tight at full speed. So it eases off when the
+    // steer point is well off the nose (a corner coming up), never below botNavCornerThrottle.
+    // Another deliberate exception to FD-07, like back-off; botNavSlowForCorners = false restores it.
+    float CornerThrottle(Vector3 steerPoint, Vector3 forward, HandlingValues v)
+    {
+        if (!v.botNavSlowForCorners || !hasRoute) return 1f;
+
+        Vector3 to = steerPoint - transform.position;
+        to.y = 0f;
+        if (to.sqrMagnitude < 0.01f) return 1f;
+
+        float angle = Mathf.Abs(Vector3.SignedAngle(forward, to, Vector3.up));
+        float full = v.botNavSlowAngle;           // full throttle below this
+        float slowest = Mathf.Max(full + 1f, 90f); // slowest from here on
+        float t = Mathf.InverseLerp(full, slowest, angle);
+        return Mathf.Lerp(1f, v.botNavCornerThrottle, t);
     }
 
     PlayerNetInput MakeInput(float throttle, float steer)
@@ -305,6 +338,12 @@ public sealed class BotBrain : NetworkBehaviour
     // drivable slopes don't count as walls.
     float OpenDistance(Vector3 position, Vector3 direction, float maxDistance)
     {
+        // With a NavMesh: measure along the drivable surface instead. It stops at walls AND at cliff
+        // edges, and stays on the level the bot is on - a physics sweep at car height sails straight
+        // over a plateau's edge and picks a "free" point in mid-air, which the bot then drives at.
+        if (TryNavOpenDistance(position, direction, maxDistance, out float navOpen))
+            return navOpen;
+
         // Start the sweep above the floor: a sphere that begins overlapping the ground would report
         // a hit at distance 0 with a sideways normal, and every direction would look blocked.
         float radius = Mathf.Max(0.3f, chassisLength * 0.3f);
@@ -379,7 +418,9 @@ public sealed class BotBrain : NetworkBehaviour
     {
         steer = 0f;
         noseBlocked = false;
-        float length = chassisLength * v.botWhiskerChassisLengths;
+        // On a NavMesh route the path already keeps clear of walls, so the whiskers are shorter: long
+        // ones fire constantly in narrow lanes and fight the route, steering the car off it.
+        float length = chassisLength * v.botWhiskerChassisLengths * (hasRoute ? v.botNavWhiskerScale : 1f);
         Vector3 origin = transform.position + Vector3.up * 0.5f;
 
         Vector3 leftDir = Quaternion.AngleAxis(-v.botWhiskerSideAngle, Vector3.up) * forward;
@@ -490,8 +531,10 @@ public sealed class BotBrain : NetworkBehaviour
     NavMeshPath navPath;
     readonly Vector3[] corners = new Vector3[32];
     int cornerCount;
-    int cornerIndex;
+    int cornerIndex;   // end of the route segment being followed (corners[cornerIndex - 1] -> corners[cornerIndex])
     bool hasRoute;
+    bool repathNow;
+    Vector3 lastPursuitPoint; // gizmo only
 
     // The NavMesh agent type the arena was baked for (the car-sized one), found once and shared.
     static int navAgentTypeId = -1;
@@ -519,6 +562,23 @@ public sealed class BotBrain : NetworkBehaviour
         hasRoute = true;
     }
 
+    // Open distance across the NavMesh from the bot's position, along a direction: up to the first
+    // mesh edge (a wall, a cliff, a pool). False when there's no NavMesh to ask.
+    bool TryNavOpenDistance(Vector3 position, Vector3 direction, float maxDistance, out float open)
+    {
+        open = maxDistance;
+        HandlingValues v = Values;
+        if (!v.botUseNavMesh || !TryGetAgentType(v, position)) return false;
+
+        var filter = new NavMeshQueryFilter { agentTypeID = navAgentTypeId, areaMask = NavMesh.AllAreas };
+        if (!NavMesh.SamplePosition(position, out NavMeshHit start, v.botNavSnapDistance, filter)) return false;
+
+        Vector3 end = start.position + direction * maxDistance;
+        if (NavMesh.Raycast(start.position, end, out NavMeshHit edge, filter))
+            open = edge.distance;
+        return true;
+    }
+
     // Targets aren't always on the floor: the Crown floats, the arena centre has no height, a car
     // can be mid-jump. Snap near the point first, then at our own height, a little wider.
     bool TrySampleGoal(Vector3 point, HandlingValues v, NavMeshQueryFilter filter, out Vector3 goal)
@@ -539,30 +599,50 @@ public sealed class BotBrain : NetworkBehaviour
         return false;
     }
 
-    // Where to steer this tick: the next corner, blending toward the one after it as we get close,
-    // so the car starts turning early instead of overshooting (a car can't stop and pivot).
-    Vector3 NavSteerPoint(HandlingValues v)
+    // Where to steer this tick: a point botNavLookAhead metres further along the route from the
+    // closest point on it ("pure pursuit"). The car follows the route's line smoothly, starts turning
+    // before corners and doesn't cut across them into walls. Drifted too far off the route - pushed
+    // by another car, after a back-off - it asks for a fresh route.
+    Vector3 PursuitPoint(HandlingValues v)
     {
         if (!hasRoute) return TargetPoint;
 
         Vector3 position = transform.position;
-        while (cornerIndex < cornerCount - 1 &&
-               FlatDistance(position, corners[cornerIndex]) < v.botNavCornerReachDistance)
-            cornerIndex++;
 
-        // Heading for the last corner = the target itself: aim at the live target point.
-        if (cornerIndex >= cornerCount - 1) return TargetPoint;
-
-        Vector3 corner = corners[cornerIndex];
-        Vector3 next = corners[cornerIndex + 1];
-        float distance = FlatDistance(position, corner);
-
-        if (v.botNavLookAhead > 0f && distance < v.botNavLookAhead)
+        // Project onto the current segment (corners[i-1] -> corners[i]); move on once past its end.
+        Vector3 closest = ClosestOnSegment(position, corners[cornerIndex - 1], corners[cornerIndex], out float along);
+        while (along >= 1f && cornerIndex < cornerCount - 1)
         {
-            float t = 1f - distance / v.botNavLookAhead;
-            return Vector3.Lerp(corner, next, t * 0.5f);
+            cornerIndex++;
+            closest = ClosestOnSegment(position, corners[cornerIndex - 1], corners[cornerIndex], out along);
         }
-        return corner;
+
+        if (FlatDistance(position, closest) > v.botNavOffRouteDistance) repathNow = true;
+
+        // Walk the look-ahead distance along the route from the closest point.
+        float remaining = Mathf.Max(0.5f, v.botNavLookAhead);
+        Vector3 from = closest;
+        for (int i = cornerIndex; i < cornerCount; i++)
+        {
+            float segment = FlatDistance(from, corners[i]);
+            if (segment >= remaining)
+                return Vector3.Lerp(from, corners[i], remaining / Mathf.Max(0.0001f, segment));
+            remaining -= segment;
+            from = corners[i];
+        }
+
+        // Past the end: the route's end, the target snapped onto the floor (not the raw target, which
+        // can be in the air beyond a ledge or on another level, through a wall).
+        return corners[cornerCount - 1];
+    }
+
+    static Vector3 ClosestOnSegment(Vector3 p, Vector3 a, Vector3 b, out float t)
+    {
+        Vector2 ab = new Vector2(b.x - a.x, b.z - a.z);
+        Vector2 ap = new Vector2(p.x - a.x, p.z - a.z);
+        float lengthSqr = ab.sqrMagnitude;
+        t = lengthSqr > 0.0001f ? Mathf.Clamp01(Vector2.Dot(ap, ab) / lengthSqr) : 1f;
+        return Vector3.Lerp(a, b, t);
     }
 
     static float FlatDistance(Vector3 a, Vector3 b)
@@ -655,9 +735,11 @@ public sealed class BotBrain : NetworkBehaviour
         Gizmos.DrawLine(origin, TargetPoint);
         Gizmos.DrawWireSphere(TargetPoint, 0.5f);
 
-        // The NavMesh route: white, from the current corner on.
+        // The NavMesh route: white, from the current corner on; the point being steered at: green.
         if (hasRoute)
         {
+            Gizmos.color = Color.green;
+            Gizmos.DrawWireSphere(lastPursuitPoint + Vector3.up * 0.3f, 0.35f);
             Gizmos.color = Color.white;
             Vector3 from = transform.position;
             for (int i = cornerIndex; i < cornerCount; i++)

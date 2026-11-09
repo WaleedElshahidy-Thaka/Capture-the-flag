@@ -229,7 +229,7 @@ public class HandlingValues
 
     [Tooltip("bot_whisker_length, in chassis lengths (~1.5).")]
     [SerializeField, Min(0.1f)]
-    public float botWhiskerChassisLengths = 1.5f;
+    public float botWhiskerChassisLengths = 6f;
 
     [Tooltip("Angle of the forward-left / forward-right whiskers from straight ahead, degrees. Not in FD-07.")]
     [SerializeField, Range(10f, 60f)]
@@ -270,7 +270,7 @@ public class HandlingValues
 
     [Tooltip("A wall closer than this ahead (in chassis lengths) counts as nose-blocked.")]
     [SerializeField, Min(0.1f)]
-    public float botBlockedDistanceChassisLengths = 0.75f;
+    public float botBlockedDistanceChassisLengths = 3f;
 
     [Tooltip("Nose-blocked and nearly stopped this long (seconds) = back off. Much quicker than the stuck timer.")]
     [SerializeField, Min(0.05f)]
@@ -287,21 +287,36 @@ public class HandlingValues
     public bool botUseNavMesh = true;
 
     [Tooltip("NavMesh agent type the arena was baked for (e.g. \"Car\"). Empty = the first one with a NavMesh under the bot.")]
-    public string botNavAgentType = "";
+    public string botNavAgentType = "Robot";
 
     [Tooltip("How far a point may be from the NavMesh and still be snapped onto it (metres) - the Crown floats, cars jump.")]
     [SerializeField, Min(0.1f)]
     public float botNavSnapDistance = 3f;
 
-    [Tooltip("Within this distance (metres) a route corner counts as reached and the bot heads for the next.")]
-    [SerializeField, Min(0.1f)]
-    public float botNavCornerReachDistance = 2f;
-
-    [Tooltip("Starts turning toward the following corner this far before reaching a corner (metres), so it doesn't overshoot. 0 = off.")]
-    [SerializeField, Min(0f)]
+    [Tooltip("The bot steers at a point this far ahead along its route (metres). Higher = smoother, turns earlier; lower = hugs the route more tightly.")]
+    [SerializeField, Min(0.5f)]
     public float botNavLookAhead = 4f;
 
+    [Tooltip("Further than this from its route (metres) - pushed, bumped, backed off - the bot routes again at once.")]
+    [SerializeField, Min(0.5f)]
+    public float botNavOffRouteDistance = 4f;
+
+    [Tooltip("Ease off the throttle for corners. Exception to FD-07 (throttle always held): at full speed a car can't make a sharp turn and runs into the wall.")]
+    public bool botNavSlowForCorners = true;
+
+    [Tooltip("Full throttle while the steer point is within this angle of the nose (degrees); slows down past it.")]
+    [SerializeField, Range(5f, 80f)]
+    public float botNavSlowAngle = 30f;
+
+    [Tooltip("Lowest throttle in a sharp corner or while dodging a wall (0..1). Too low and the car crawls.")]
+    [SerializeField, Range(0.1f, 1f)]
+    public float botNavCornerThrottle = 0.4f;
+
+    [Tooltip("Whisker length while following a route, as a fraction of normal. The route already keeps clear of walls; full-length whiskers fight it in narrow lanes.")]
+    [SerializeField, Range(0.2f, 1f)]
+    public float botNavWhiskerScale = 0.6f;
+
     [Tooltip("Recover target: the arena centre, X and Z (FD-07). The default arena is centred on the origin.")]
-    public float botArenaCenterX = 0f;
-    public float botArenaCenterZ = 0f;
+    public float botArenaCenterX = -235f;
+    public float botArenaCenterZ = -56f;
 }
