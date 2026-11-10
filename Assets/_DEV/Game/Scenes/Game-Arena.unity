@@ -144551,6 +144551,9 @@ GameObject:
   - component: {fileID: 1484112146}
   - component: {fileID: 1484112145}
   - component: {fileID: 1484112149}
+  - component: {fileID: 1484112152}
+  - component: {fileID: 1484112151}
+  - component: {fileID: 1484112150}
   m_Layer: 0
   m_Name: Garden Fence 5
   m_TagString: Untagged
@@ -144803,6 +144806,57 @@ MeshCollider:
   m_Convex: 1
   m_CookingOptions: 30
   m_Mesh: {fileID: 0}
+--- !u!114 &1484112150
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1484112143}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 35e95dc5ff2b64380880dd7ac5922847, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Unity.AI.Navigation::Unity.AI.Navigation.NavMeshModifierVolume
+  m_SerializedVersion: 0
+  m_Size: {x: 100.2117, y: 16.153915, z: 22.680168}
+  m_Center: {x: 102.285355, y: -0.23082519, z: 15.998005}
+  m_Area: 1
+  m_AffectedAgents: ffffffff
+--- !u!114 &1484112151
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1484112143}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 35e95dc5ff2b64380880dd7ac5922847, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Unity.AI.Navigation::Unity.AI.Navigation.NavMeshModifierVolume
+  m_SerializedVersion: 0
+  m_Size: {x: 114.97063, y: 13.206051, z: 40.121613}
+  m_Center: {x: 69.093254, y: -1.0186825, z: -15.574753}
+  m_Area: 1
+  m_AffectedAgents: ffffffff
+--- !u!114 &1484112152
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1484112143}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 35e95dc5ff2b64380880dd7ac5922847, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Unity.AI.Navigation::Unity.AI.Navigation.NavMeshModifierVolume
+  m_SerializedVersion: 0
+  m_Size: {x: 66.15779, y: 6.2184753, z: 26.20343}
+  m_Center: {x: 41.708443, y: 2.6092377, z: -11.101715}
+  m_Area: 1
+  m_AffectedAgents: ffffffff
 --- !u!1001 &1485517570
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -178546,6 +178600,10 @@ GameObject:
   - component: {fileID: 1842029419}
   - component: {fileID: 1842029418}
   - component: {fileID: 1842029417}
+  - component: {fileID: 1842029424}
+  - component: {fileID: 1842029423}
+  - component: {fileID: 1842029422}
+  - component: {fileID: 1842029421}
   m_Layer: 0
   m_Name: Garden Fence 3
   m_TagString: Untagged
@@ -179236,6 +179294,74 @@ MonoBehaviour:
       m_Data: []
   m_Knots:
     m_KnotsLink: []
+--- !u!114 &1842029421
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1842029415}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 35e95dc5ff2b64380880dd7ac5922847, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Unity.AI.Navigation::Unity.AI.Navigation.NavMeshModifierVolume
+  m_SerializedVersion: 0
+  m_Size: {x: 13.429832, y: 14.181858, z: 14.60054}
+  m_Center: {x: 17.808468, y: -4.590931, z: -13.219345}
+  m_Area: 1
+  m_AffectedAgents: ffffffff
+--- !u!114 &1842029422
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1842029415}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 35e95dc5ff2b64380880dd7ac5922847, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Unity.AI.Navigation::Unity.AI.Navigation.NavMeshModifierVolume
+  m_SerializedVersion: 0
+  m_Size: {x: 15.521027, y: 9.159203, z: 11.723618}
+  m_Center: {x: 20.369797, y: 0.3127432, z: -28.849167}
+  m_Area: 1
+  m_AffectedAgents: ffffffff
+--- !u!114 &1842029423
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1842029415}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 35e95dc5ff2b64380880dd7ac5922847, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Unity.AI.Navigation::Unity.AI.Navigation.NavMeshModifierVolume
+  m_SerializedVersion: 0
+  m_Size: {x: 49.912872, y: 6.445058, z: 34.8413}
+  m_Center: {x: -20.222229, y: 6.532326, z: 11.956821}
+  m_Area: 1
+  m_AffectedAgents: ffffffff
+--- !u!114 &1842029424
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1842029415}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 35e95dc5ff2b64380880dd7ac5922847, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Unity.AI.Navigation::Unity.AI.Navigation.NavMeshModifierVolume
+  m_SerializedVersion: 0
+  m_Size: {x: 56.573814, y: 9.398766, z: 32.417587}
+  m_Center: {x: 14.122128, y: -2.1993818, z: -4.018799}
+  m_Area: 1
+  m_AffectedAgents: ffffffff
 --- !u!4 &1843547009 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 4774518901230966811, guid: a33bc2437ca23ef45b1035c05e2b0e02, type: 3}

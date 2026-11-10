@@ -178,14 +178,23 @@ public class HandlingValues
     public float Stage2Threshold = 100f;
     public float Stage3Threshold = 170f;
 
-    [Header("Drift & Boost: window and boost")]
-    [Tooltip("~0.4 s at 60 Hz, range 10-45. The accessibility dial.")]
-    public int WindowTicks = 24;
+    [Header("Drift & Boost: stage windows and boost (Hold-to-Boost v0.1)")]
+    [Tooltip("Ticks a stage window stays open after its threshold is crossed (~0.33 s at 60 Hz). " +
+             "The platform's accessibility dial: widen this, and nothing else, if the game proves too hard.")]
+    public int StageWindowTicks = 40;//20
+    [Tooltip("Ticks spent NOT sliding before reserve and stage progress zero (~0.75 s). Long enough to re-hop " +
+             "the other way and keep the chain; too long and a chain never ends.")]
+    public int StageResetTicks = 45;
     public float Stage1BoostMultiplier = 1.18f;
     [Tooltip("Overdrive uses this stage.")]
     public float Stage2BoostMultiplier = 1.32f;
     public float Stage3BoostMultiplier = 1.5f;
-    public int BoostTicks = 45;                    // ~0.75 s
+    [Tooltip("Stage 1 boost duration in ticks.")]
+    public int Stage1BoostTicks = 40;
+    [Tooltip("Stage 2 boost duration in ticks. Overdrive uses this stage.")]
+    public int Stage2BoostTicks = 50;
+    [Tooltip("Stage 3 boost duration in ticks - the long one.")]
+    public int Stage3BoostTicks = 75;
     public int ChainGraceTicks = 30;               // ~0.5 s
     [Tooltip("Applies only while the aggressor is Boosting or Chained. Range 1.0-2.5.")]
     public float BoostBumpMultiplier = 1.6f;
@@ -195,6 +204,11 @@ public class HandlingValues
     public float DriftGripMultiplier = 0.38f;
     [Tooltip("Multiplier on MaxYawRate while Sliding (Arena preset value).")]
     public float DriftRotationAuthority = 1.16f;
+    [Tooltip("(mine) Direction lock: steer FULLY AGAINST the slide = this much turn into it (widest arc). " +
+             "Above 0 so the slide never flips or straightens out.")]
+    [Range(0f, 1f)] public float DriftArcWide = 0.3f;
+    [Tooltip("(mine) Direction lock: steer fully INTO the slide = this much turn (tightest arc). No steer = halfway.")]
+    [Range(0f, 1f)] public float DriftArcTight = 1f;
 
     // ─── Surfaces (Handling Profiles) ───────────────────────────────────
     // Untagged geometry is Default (FD-06). Oil only exists as runtime patches from the Oil Slick
@@ -270,7 +284,7 @@ public class HandlingValues
 
     [Tooltip("A wall closer than this ahead (in chassis lengths) counts as nose-blocked.")]
     [SerializeField, Min(0.1f)]
-    public float botBlockedDistanceChassisLengths = 3f;
+    public float botBlockedDistanceChassisLengths = 0.75f;
 
     [Tooltip("Nose-blocked and nearly stopped this long (seconds) = back off. Much quicker than the stuck timer.")]
     [SerializeField, Min(0.05f)]
@@ -287,7 +301,7 @@ public class HandlingValues
     public bool botUseNavMesh = true;
 
     [Tooltip("NavMesh agent type the arena was baked for (e.g. \"Car\"). Empty = the first one with a NavMesh under the bot.")]
-    public string botNavAgentType = "Robot";
+    public string botNavAgentType = "";
 
     [Tooltip("How far a point may be from the NavMesh and still be snapped onto it (metres) - the Crown floats, cars jump.")]
     [SerializeField, Min(0.1f)]

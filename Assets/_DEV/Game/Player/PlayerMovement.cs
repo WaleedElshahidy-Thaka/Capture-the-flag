@@ -58,6 +58,12 @@ public class PlayerMovement : NetworkBehaviour
     [Networked] NetworkBool PowerUpKeyWasPressed { get; set; }
     // Repulse Pulse: ticks left with reduced grip after being shoved. Appended - keep it last.
     [Networked] int ShoveTicksRemaining { get; set; }
+    // Hold-to-Boost (drift v0.1). Appended - keep them last, in this order.
+    [Networked] NetworkBool DriftBoostHeld { get; set; }
+    [Networked] int DriftStageReachedValue { get; set; }
+    [Networked] int DriftWindowStageValue { get; set; }
+    [Networked] int DriftWindowTicks { get; set; }
+    [Networked] int DriftNotSlidingTicks { get; set; }
 
     public bool IsSpinningOut => SpinoutTicksRemaining > 0;
     public bool HasContactImmunity => ImmunityTicksRemaining > 0;
@@ -76,6 +82,10 @@ public class PlayerMovement : NetworkBehaviour
     public bool IsChained => ReadDriftState().IsChained;
     public int DriftStage => DriftBoost.CurrentStage(ReadDriftState(), handling);
     public float DriftReserveValue => DriftReserve;
+    public int DriftDirectionValue => DriftDirection;        // -1 left, +1 right, 0 not sliding
+    public int DriftStageReached => DriftStageReachedValue;  // stages crossed this chain (0..3)
+    public int DriftWindowStage => DriftWindowStageValue;    // > 0 while a "press Shift now" window is open
+    public bool IsInStageWindow => ReadDriftState().InWindow;
 
     // Multiplies the arcade bonus component of a contact when this car is the aggressor (1.6x while
     // Boosting or Chained). The collision code owns the rest of the impulse.
@@ -188,7 +198,7 @@ public class PlayerMovement : NetworkBehaviour
             ForwardSpeed = driveModel.ForwardSpeed,
             LateralSpeed = body.transform.InverseTransformDirection(body.linearVelocity).x,
             Grounded = driveModel.IsGrounded,
-            Collided = contactSinceLastTick || driveModel.TouchingWall,
+            Collided = contactSinceLastTick || driveModel.TouchingWall, // ignored: contact never costs the slide
             SurfaceChargeFactor = 1f,        // TODO: read the surface's drift-charge channel when surfaces exist
             Tick = Runner.Tick.Raw,
         };
@@ -217,6 +227,10 @@ public class PlayerMovement : NetworkBehaviour
         driveHandling.BoostMultiplier = drift.IsBoosting
             ? DriftBoost.BoostTargetSpeed(drift) / Mathf.Max(0.01f, handling.TopSpeed)
             : handling.BoostMultiplier;
+
+        // Direction lock: while Sliding, A/D only shape the arc - the car always rotates the locked way
+        // (steer against = widest arc, never a flip).
+        input.SteerAxis = DriftBoost.SlideSteer(drift, input.SteerAxis, handling);
 
         // The drive model's Boost input now means "Layer C says boosting", not "Left Shift is down".
         // The old Left Ctrl grip button is not in the model, so it is never passed through.
@@ -348,6 +362,11 @@ public class PlayerMovement : NetworkBehaviour
         ChainGraceTicksRemaining = ChainGraceTicksRemaining,
         ChainLinks = ChainLinks,
         LastBoostStartTick = LastBoostStartTick,
+        BoostHeldLastTick = DriftBoostHeld,
+        StageReached = DriftStageReachedValue,
+        WindowStage = DriftWindowStageValue,
+        WindowTicksRemaining = DriftWindowTicks,
+        NotSlidingTicks = DriftNotSlidingTicks,
     };
 
     void WriteDriftState(in DriftBoostState s)
@@ -363,5 +382,10 @@ public class PlayerMovement : NetworkBehaviour
         ChainGraceTicksRemaining = s.ChainGraceTicksRemaining;
         ChainLinks = s.ChainLinks;
         LastBoostStartTick = s.LastBoostStartTick;
+        DriftBoostHeld = s.BoostHeldLastTick;
+        DriftStageReachedValue = s.StageReached;
+        DriftWindowStageValue = s.WindowStage;
+        DriftWindowTicks = s.WindowTicksRemaining;
+        DriftNotSlidingTicks = s.NotSlidingTicks;
     }
 }
