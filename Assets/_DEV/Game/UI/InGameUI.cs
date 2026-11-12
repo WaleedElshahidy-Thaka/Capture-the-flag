@@ -39,6 +39,8 @@ public class InGameUI : MonoBehaviour
     [SerializeField] Color timerFinalColor = new Color(1f, 0.3f, 0.3f);
     [Tooltip("FD-01: colour shift and pulse for the final 10 s.")]
     [SerializeField, Min(0)] int finalSeconds = 10;
+    [Tooltip("02:30 instead of 2:30 (mockup).")]
+    [SerializeField] bool padMinutes = true;
 
     [Header("Power-up slot")]
     [SerializeField] Image powerUpIcon;
@@ -51,6 +53,21 @@ public class InGameUI : MonoBehaviour
     [SerializeField] Color activeColor = new Color(0.4f, 1f, 1f);
     [Tooltip("Optional key prompt next to the icon.")]
     [SerializeField] TMP_Text keyPromptText;
+    [Tooltip("Optional: the held item's name next to the key prompt (\"Overdrive\").")]
+    [SerializeField] TMP_Text powerUpNameText;
+    [Tooltip("In PowerUpType order, like the sprites.")]
+    [SerializeField] string[] itemNames = { "Overdrive", "Grapple Field", "Damper Field", "Oil Slick", "Repulse Pulse" };
+
+    [Header("Power-up section fade")]
+    [Tooltip("CanvasGroups that light up while you have a power-up, e.g. the item name (Power-UpTitle) or the whole " +
+             "KeyInfo row. Alpha 1 with an item; Empty Alpha without. The name text is never cleared - it fades out " +
+             "with these groups, and snaps back to alpha 1 whenever it changes to a new item.")]
+    [SerializeField] CanvasGroup[] powerUpGroups;
+    [Tooltip("Alpha of those groups while the slot is empty. 0 = hidden, 0.35 = dimmed.")]
+    [SerializeField, Range(0f, 1f)] float powerUpEmptyAlpha = 0f;
+    [Tooltip("Also stay lit while a used item's effect is still running (Damper, Grapple, Repulse charging).")]
+    [SerializeField] bool powerUpLitWhileEffectRuns = true;
+    [SerializeField, Min(0f)] float powerUpFadeSeconds = 0.25f;
     [SerializeField] string keyPrompt = "F";
     [Tooltip("FD-04 reveal: the slot rolls through items for about half a second, then settles.")]
     [SerializeField, Min(0f)] float revealSeconds = 0.5f;
@@ -77,6 +94,7 @@ public class InGameUI : MonoBehaviour
     Vector3 timerBaseScale = Vector3.one;
 
     PowerUpType lastHeld = PowerUpType.None;
+    PowerUpType lastShownItem = PowerUpType.None; // what the name showed last frame (None = faded out)
     float revealEndsAt;
     float iconPulse;
     Vector3 iconBaseScale = Vector3.one;
@@ -175,7 +193,7 @@ public class InGameUI : MonoBehaviour
         bool final = seconds <= finalSeconds;
 
         SetText(timerTitle, "TIME");
-        SetText(timerText, $"{seconds / 60}:{seconds % 60:00}");
+        SetText(timerText, padMinutes ? $"{seconds / 60:00}:{seconds % 60:00}" : $"{seconds / 60}:{seconds % 60:00}");
         SetColor(timerText, final ? timerFinalColor : timerNormalColor);
 
         // One pulse per second in the final stretch.
@@ -187,7 +205,7 @@ public class InGameUI : MonoBehaviour
 
     void RefreshScoreboard()
     {
-        SetText(scoreboardTitle, "SCORE");
+        SetText(scoreboardTitle, "PLAYER SCOREBOARD");
 
         sorted.Clear();
         var cars = PlayerRoster.Active;
@@ -224,8 +242,6 @@ public class InGameUI : MonoBehaviour
 
     void RefreshPowerUp()
     {
-        if (powerUpIcon == null) return;
-
         var local = PlayerRoster.Local;
         PowerUpType held = PowerUpType.None;
         if (local != null && local.TryGetComponent(out PowerUpInventory inventory)) held = inventory.HeldItem;
@@ -235,11 +251,32 @@ public class InGameUI : MonoBehaviour
             revealEndsAt = Time.unscaledTime + revealSeconds;
         lastHeld = held;
 
+        bool revealing = held != PowerUpType.None && revealEndsAt - Time.unscaledTime > 0f;
+        PowerUpType effect = ActiveEffect(local);
+
+        // What the name shows: the held item once the roll has settled, otherwise a running effect.
+        PowerUpType shown = held != PowerUpType.None
+            ? (revealing ? PowerUpType.None : held)
+            : (powerUpLitWhileEffectRuns ? effect : PowerUpType.None);
+
+        // The name is never blanked: an empty slot only fades the groups out, so the text fades
+        // with them instead of vanishing. Every update - a new item, or the same item picked up
+        // again - sets the name and snaps the groups straight to full alpha.
+        if (shown != PowerUpType.None && shown != lastShownItem)
+        {
+            if (powerUpNameText != null) powerUpNameText.text = ItemName(shown);
+            SetPowerUpGroupsAlpha(1f);
+        }
+        lastShownItem = shown;
+        FadePowerUpGroups(shown != PowerUpType.None ? 1f : powerUpEmptyAlpha);
+
+        if (powerUpIcon == null) return;
+
         if (held != PowerUpType.None)
         {
-            float left = revealEndsAt - Time.unscaledTime;
-            if (left > 0f)
+            if (revealing)
             {
+                float left = revealEndsAt - Time.unscaledTime;
                 int step = Mathf.FloorToInt((revealSeconds - left) / revealStepSeconds);
                 SetIcon(SpriteAt(step), heldColor);
                 return;
@@ -254,12 +291,11 @@ public class InGameUI : MonoBehaviour
         SetActive(keyPromptText != null ? keyPromptText.gameObject : null, false, false);
 
         // Slot empty but an effect is running: show it, gently blinking.
-        PowerUpType active = ActiveEffect(local);
-        if (active != PowerUpType.None)
+        if (effect != PowerUpType.None)
         {
             Color c = activeColor;
             c.a = 0.55f + 0.45f * Mathf.Abs(Mathf.Sin(Time.unscaledTime * 4f));
-            SetIcon(ItemSprite(active), c);
+            SetIcon(ItemSprite(effect), c);
             return;
         }
 
@@ -273,6 +309,31 @@ public class InGameUI : MonoBehaviour
         if (local.TryGetComponent(out GrappleField grapple) && grapple.IsActive) return PowerUpType.GrappleField;
         if (local.TryGetComponent(out RepulsePulse repulse) && repulse.IsCharging) return PowerUpType.RepulsePulse;
         return PowerUpType.None;
+    }
+
+    void SetPowerUpGroupsAlpha(float alpha)
+    {
+        if (powerUpGroups == null) return;
+        foreach (var g in powerUpGroups) if (g != null) g.alpha = alpha;
+    }
+
+    // Eases each group toward the target alpha; never blocks clicks (it's a HUD).
+    void FadePowerUpGroups(float target)
+    {
+        if (powerUpGroups == null) return;
+        float step = powerUpFadeSeconds > 0f ? Time.unscaledDeltaTime / powerUpFadeSeconds : 1f;
+        foreach (var g in powerUpGroups)
+        {
+            if (g == null) continue;
+            g.alpha = Mathf.MoveTowards(g.alpha, target, step);
+            g.blocksRaycasts = false;
+        }
+    }
+
+    string ItemName(PowerUpType item)
+    {
+        int index = (int)item - 1; // None = 0
+        return itemNames != null && index >= 0 && index < itemNames.Length ? itemNames[index] : "";
     }
 
     Sprite ItemSprite(PowerUpType item)

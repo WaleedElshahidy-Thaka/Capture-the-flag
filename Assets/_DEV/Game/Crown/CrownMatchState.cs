@@ -10,7 +10,7 @@ public class CrownMatchState : NetworkBehaviour
     [Networked]
     public NetworkId HolderId { get; set; }
 
-    
+
 
     [Networked]
     private int ProtectionTicksRemaining { get; set; }
@@ -40,9 +40,9 @@ public class CrownMatchState : NetworkBehaviour
         if (ProtectionTicksRemaining > 0)
         {
             ProtectionTicksRemaining--;
-            
+
         }
-         
+
     }
     public bool IsHolder(NetworkObject car)
     {
@@ -93,7 +93,7 @@ public class CrownMatchState : NetworkBehaviour
     // Call only on State Authority after contact classification succeeds.
     public bool TryTransfer(NetworkObject newHolder)
     {
-        if(!Object.HasStateAuthority || newHolder == null)
+        if (!Object.HasStateAuthority || newHolder == null)
             return false;
 
         if (HolderId == newHolder.Id)
@@ -101,7 +101,7 @@ public class CrownMatchState : NetworkBehaviour
 
         if (IsProtected)
         {
-           Debug.Log($"Crown is protected: {IsProtected}");
+            Debug.Log($"Crown is protected: {IsProtected}");
             //Debug.Log($"[Crown] Transfer to {newHolder.name} blocked: current holder is protected for {ProtectionTicksRemaining / Runner.TickRate:F2} more seconds.");
             return false;
         }
@@ -109,11 +109,15 @@ public class CrownMatchState : NetworkBehaviour
         HolderId = newHolder.Id;
         ResetProtectionTime(); // Restart protection for the new holder.
 
+        // A transfer is always a steal (a free Crown goes through TryPickup) - count it for the results.
+        if (newHolder.TryGetComponent(out PlayerMatchState thief) && thief.HasState)
+            thief.Steals++;
+
 
         //Debug.Log($"[Crown] Transferred to: {newHolder.name}");
         //Debug.Log($"[Crown] Transfer executed at time {Time.time:F2}. " + $"New holder: {newHolder.Id}");
         return true;
-        
+
     }
 
     //

@@ -164,14 +164,14 @@ public class HandlingValues
     public float DriftMinSpeed = 6f;               // m/s
     public int HopTicks = 12;                      // ~0.2 s at 60 Hz
     [Tooltip("(mine) Upward m/s given at hop start. Tune so the hop lasts about HopTicks.")]
-    public float HopVelocity = 1.4f;
+    public float HopVelocity = 1.6f;//1.4
     [Tooltip("(mine) Steer needed at landing to commit a drift.")]
     public float SteerCommitDeadzone = 0.2f;
     [Tooltip("Units/tick at optimal slip. Race value; Glowtag overrides back to it. Range 0-2.5.")]
     public float ReserveGainRate = 1.9f;
-    public float OptimalSlipAngle = 24f;           // degrees
+    public float OptimalSlipAngle = 35f;           // degrees
     [Tooltip("(mine) Slip angle at which charge bottoms out.")]
-    public float MaxSlipAngle = 60f;
+    public float MaxSlipAngle = 70f;
     [Tooltip("(mine) Charge scale at ~zero speed; the doc says speed 'scales mildly'.")]
     public float SpeedChargeFloor = 0.6f;
     public float Stage1Threshold = 45f;
@@ -201,12 +201,12 @@ public class HandlingValues
 
     [Header("Drift & Boost: sliding handling")]
     [Tooltip("Multiplier on GripRate while Sliding. Automatic, not a button.")]
-    public float DriftGripMultiplier = 0.38f;
+    public float DriftGripMultiplier = 0.28f;//0.38
     [Tooltip("Multiplier on MaxYawRate while Sliding (Arena preset value).")]
-    public float DriftRotationAuthority = 1.16f;
+    public float DriftRotationAuthority = 1.5f;
     [Tooltip("(mine) Direction lock: steer FULLY AGAINST the slide = this much turn into it (widest arc). " +
              "Above 0 so the slide never flips or straightens out.")]
-    [Range(0f, 1f)] public float DriftArcWide = 0.3f;
+    [Range(0f, 1f)] public float DriftArcWide = 0.45f;
     [Tooltip("(mine) Direction lock: steer fully INTO the slide = this much turn (tightest arc). No steer = halfway.")]
     [Range(0f, 1f)] public float DriftArcTight = 1f;
 

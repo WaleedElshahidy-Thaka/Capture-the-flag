@@ -8,6 +8,10 @@ public static class PlayerInputSampler
     {
         var data = new PlayerNetInput();
 
+        // Pause menu open: the match keeps running for everyone, but this car gets no input -
+        // it coasts, and Escape/clicks in the menu never steer, hop or fire a power-up.
+        if (PauseUI.IsOpen) return data;
+
         var keyboard = Keyboard.current;
         if (keyboard == null) return data;
 

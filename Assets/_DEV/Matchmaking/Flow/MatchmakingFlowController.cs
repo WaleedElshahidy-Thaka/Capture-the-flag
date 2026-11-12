@@ -88,6 +88,42 @@ public class MatchmakingFlowController : MonoBehaviour
         SetPhase(MatchmakingPhase.Idle);
     }
 
+    // Results screen "Return to main menu": leave the finished session and go back to the lobby,
+    // idle - no new search until the player presses READY.
+    public void ReturnToMenu()
+    {
+        if (!matchFinished) return;
+        matchFinished = false;
+        connectAttempt++; // ignore any late result from the old connection
+
+        if (Session != null)
+        {
+            Session.Leave();
+            Session = null;
+        }
+
+        searchRequested = false;
+        SetPhase(MatchmakingPhase.Idle);
+    }
+
+    // Pause menu "Exit to main menu": leave a match that is still running and go back to the lobby,
+    // idle. Under Host mode, if this peer is the host the others carry on through host migration;
+    // otherwise the car is handed to a bot (PlayerLobbySpawner.HandlePlayerLeft).
+    public void LeaveMatch()
+    {
+        matchFinished = false;
+        connectAttempt++; // ignore any late result from the old connection
+
+        if (Session != null)
+        {
+            Session.Leave();
+            Session = null;
+        }
+
+        searchRequested = false;
+        SetPhase(MatchmakingPhase.Idle);
+    }
+
     // Results screen button: leave the finished session and search for a new match.
     public void PlayAgain()
     {

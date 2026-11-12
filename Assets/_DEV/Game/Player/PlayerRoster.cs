@@ -18,7 +18,11 @@ public static class PlayerRoster
     public static event Action Changed;
 
     // Register/Unregister don't raise Changed; the caller does once its own state is settled.
-    internal static void Register(PlayerMatchState player) => active.Add(player);
+    internal static void Register(PlayerMatchState player)
+    {
+        active.RemoveAll(p => p == null); // drop cars destroyed without a Despawned (runner shutdown)
+        if (!active.Contains(player)) active.Add(player);
+    }
 
     internal static void Unregister(PlayerMatchState player)
     {

@@ -142,9 +142,10 @@ MonoBehaviour:
   rankText: {fileID: 0}
   nameText: {fileID: 4992294947068776252}
   scoreText: {fileID: 3616054640036332611}
+  scoreFormat: '{0} pts'
   deltaText: {fileID: 0}
   crownIcon: {fileID: 0}
-  localHighlight: {fileID: 0}
+  localHighlight: {fileID: 4173935900556907867}
   localNameColor: {r: 1, g: 1, b: 1, a: 1}
   otherNameColor: {r: 1, g: 1, b: 1, a: 0.85}
 --- !u!1 &6357119575671019590
@@ -260,7 +261,7 @@ MonoBehaviour:
   m_faceColor:
     serializedVersion: 2
     rgba: 4294967295
-  m_fontSize: 21.25
+  m_fontSize: 20
   m_fontSizeBase: 25.7
   m_fontWeight: 400
   m_enableAutoSizing: 1

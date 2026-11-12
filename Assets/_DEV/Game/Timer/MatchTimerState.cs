@@ -53,6 +53,9 @@ public class MatchTimerState : NetworkBehaviour
     {
         Instance = this;
 
+        // New match: the previous result is history. (Restored-after-migration timers keep theirs.)
+        if (!Started) MatchResultsStore.Clear();
+
         // Spawned also runs for objects restored after a host migration - only start once.
         if (Object.HasStateAuthority && !Started)
         {
@@ -82,20 +85,30 @@ public class MatchTimerState : NetworkBehaviour
             return;
         }
 
-        if (crown.HolderId != default)
+        var players = PlayerRoster.Active;
+        for (int i = 0; i < players.Count; i++)
         {
-            var players = PlayerRoster.Active;
-            for (int i = 0; i < players.Count; i++)
-            {
-                var holder = players[i];
-                if (holder.Object.Id != crown.HolderId) continue;
+            var player = players[i];
+            if (player == null || !player.HasState) continue;
 
+            if (crown.HolderId != default && player.Object.Id == crown.HolderId)
+            {
                 // Flat rate: Score is whole points earned from total held time. CrownTicks carries
                 // over between holds, so partial progress toward the next point is never lost.
-                holder.CrownTicks++;
-                holder.Score = (int)(holder.CrownTicks * (double)pointsPerSecond / Runner.TickRate);
-                break;
+                player.CrownTicks++;
+                player.Score = (int)(player.CrownTicks * (double)pointsPerSecond / Runner.TickRate);
+
+                // Longest single possession (tie-break and superlative).
+                player.CurrentHoldTicks++;
+                if (player.CurrentHoldTicks > player.LongestHoldTicks)
+                    player.LongestHoldTicks = player.CurrentHoldTicks;
             }
+            else
+            {
+                player.CurrentHoldTicks = 0;
+            }
+
+            TrackDistance(player);
         }
 
         RemainingTicks--;
@@ -104,6 +117,23 @@ public class MatchTimerState : NetworkBehaviour
             RemainingTicks = 0;
             Finish();
         }
+    }
+
+    // Distance driven, flat, only while the clock runs. Positions are host-local bookkeeping; after a
+    // host migration the new host simply starts measuring from where each car is.
+    readonly System.Collections.Generic.Dictionary<NetworkId, Vector3> lastPositions =
+        new System.Collections.Generic.Dictionary<NetworkId, Vector3>();
+
+    void TrackDistance(PlayerMatchState player)
+    {
+        Vector3 now = player.transform.position;
+        if (lastPositions.TryGetValue(player.Object.Id, out Vector3 before))
+        {
+            float dx = now.x - before.x, dz = now.z - before.z;
+            float step = Mathf.Sqrt(dx * dx + dz * dz);
+            if (step < 5f) player.DistanceDriven += step; // ignore teleports (respawn, migration)
+        }
+        lastPositions[player.Object.Id] = now;
     }
 
     void Finish()

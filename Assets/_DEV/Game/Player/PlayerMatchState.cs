@@ -23,12 +23,19 @@ public class PlayerMatchState : NetworkBehaviour, IAfterHostMigration
     // Lobby seat / start anchor, 0..SlotCount-1. Stable for the whole match, for players and bots -
     // the "stable slot index" FD-07 uses as a bot's ParticipantRef. Appended - keep it last.
     [Networked] public int Slot { get; set; }
+    // Match stats for the results screen (FD-01 tie-breaks and superlatives). Host-written, replicated,
+    // so every peer builds the same final board. Appended - keep them last, in this order.
+    [Networked] public int LongestHoldTicks { get; set; }  // longest single possession
+    [Networked] public int CurrentHoldTicks { get; set; }  // the possession running now (0 when not holding)
+    [Networked] public int Steals { get; set; }            // Crown taken from another car
+    [Networked] public int Slams { get; set; }             // contacts that spun the other car out
+    [Networked] public float DistanceDriven { get; set; }  // metres, flat, while the clock runs
 
 
     public bool IsFound => IsSearching && FoundTick != 0;
     public bool InLobby => IsFound && LobbyJoinSecondsRemaining <= 0f;
     public bool IsBot => Object.InputAuthority == PlayerRef.None;
-    
+
 
     // Networked properties are only readable between Spawned and Despawned. Unity callbacks
     // (LateUpdate) can outlive the runner during a host migration, so they check this first.

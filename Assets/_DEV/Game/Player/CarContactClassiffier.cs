@@ -126,6 +126,10 @@ public sealed class CarContactClassifier : NetworkBehaviour
                 travelDirection,
                 spinSign);
 
+            // Count the slam for the results superlative (host only: this runs on the authority).
+            if (aggressor.TryGetComponent(out PlayerMatchState slammer) && slammer.HasState)
+                slammer.Slams++;
+
             if (logContacts)
             {
                 Debug.Log(

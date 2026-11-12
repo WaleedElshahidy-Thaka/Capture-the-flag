@@ -11,6 +11,8 @@ public class ScoreboardRowView : MonoBehaviour
     [SerializeField] TMP_Text rankText;
     [SerializeField] TMP_Text nameText;
     [SerializeField] TMP_Text scoreText;
+    [Tooltip("{0} = the score. Mockup: \"{0} pts\".")]
+    [SerializeField] string scoreFormat = "{0} pts";
     [Tooltip("FD-01: \"the most important number on the scoreboard\" - e.g. -140 on every non-leader row.")]
     [SerializeField] TMP_Text deltaText;
     [Tooltip("Shown on the Crown holder's row.")]
@@ -44,7 +46,8 @@ public class ScoreboardRowView : MonoBehaviour
             nameText.fontStyle = isLocal ? FontStyles.Bold : FontStyles.Normal;
         }
 
-        if (scoreText != null && score != lastScore) scoreText.text = score.ToString();
+        if (scoreText != null && score != lastScore)
+            scoreText.text = (scoreFormat ?? "{0}").Replace("{0}", score.ToString());
 
         if (deltaText != null && deltaToLeader != lastDelta)
             deltaText.text = deltaToLeader > 0 ? $"-{deltaToLeader}" : ""; // leader shows nothing
