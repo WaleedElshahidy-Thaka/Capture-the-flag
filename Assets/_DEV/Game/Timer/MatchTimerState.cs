@@ -15,7 +15,7 @@ using UnityEngine;
 public class MatchTimerState : NetworkBehaviour
 {
     [HideInInspector]
-    [SerializeField, Min(1f)] float durationSeconds = 90f;
+    [SerializeField, Min(1f)] float durationSeconds = 150f;
     [SerializeField, Min(0f)] float pointsPerSecond = 0.6f; // flat rate, no multipliers. 0.5 = 1 point per 2 s
     [SerializeField, Min(0f)] float countdownSeconds = 3f; // "3, 2, 1" before the clock starts
     // Declaration order is the network layout - keep it stable.

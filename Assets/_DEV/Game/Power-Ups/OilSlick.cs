@@ -15,7 +15,7 @@ public sealed class OilSlick : NetworkBehaviour
     [SerializeField] private NetworkObject patchPrefab;
 
     [Tooltip("oil_patch_lifetime (FD-04): provisional 8 s, range 5 to 15.")]
-    [SerializeField, Range(5f, 15f)] private float lifetimeSeconds = 8f;
+    [SerializeField, Range(5f, 15f)] private float lifetimeSeconds = 12f;
 
     [Tooltip("Not in FD-04 - provisional, confirm with design.")]
     [SerializeField, Min(0.5f)] private float radius = 2.5f;

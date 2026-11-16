@@ -2,11 +2,12 @@ using Fusion.Addons.Physics;
 using UnityEngine;
 
 // Local-only camera with three views:
-//   Solo   - before a match is found: framed on your preview robot (LobbyPreviewCar).
-//   Lobby  - one fixed shot of the whole seat row, identical for every player (LobbyLayout).
+//   Solo   - before a match is found: framed on your preview robot (optional - Use Solo View).
+//   Lobby  - one fixed shot of the lobby group (Lobby Camera Point, else LobbyLayout).
 //   Follow - in a match: third-person chase that follows the velocity direction (stable through
 //            turns) except while reversing.
-// Solo <-> Lobby cuts through a ScreenFade. Follow starts when the host releases CanMove.
+// Solo <-> Lobby, lobby -> match and match -> lobby cut through a ScreenFade. Follow starts when the
+// host releases CanMove; by then your real car is at its start spot (StartAnchors).
 public class PlayerCamera : MonoBehaviour
 {
     enum Mode { Solo, Lobby, Follow, Hold }
@@ -14,6 +15,16 @@ public class PlayerCamera : MonoBehaviour
     [SerializeField] MatchmakingFlowController flow;
     [SerializeField] Transform previewCar;
     [SerializeField] ScreenFade fade;
+
+    [Header("Lobby")]
+    [Tooltip("Optional: where the Lobby view sits and looks - the shot of the six stand-in robots. " +
+             "Empty = the LobbyLayout / StartAnchors camera.")]
+    [SerializeField] Transform lobbyCameraPoint;
+    [Tooltip("Off: skip the Solo view - the camera shows the whole lobby group from the first moment.")]
+    [SerializeField] bool useSoloView = true;
+    [Tooltip("Fade through black from the lobby into the match, so the jump to your car at its start spot " +
+             "isn't a hard cut.")]
+    [SerializeField] bool fadeIntoMatch = true;
 
     [SerializeField] Rigidbody target;
     [SerializeField] Transform view;
@@ -35,7 +46,7 @@ public class PlayerCamera : MonoBehaviour
 
     Vector3 followDirection = Vector3.forward;
     bool initialized;
-    Mode mode = Mode.Solo;
+    Mode mode = Mode.Lobby;
     bool fading;
     PlayerMatchState boundPlayer;
     PlayerMovement movement;     // our car, for its spin-out state
@@ -91,7 +102,8 @@ public class PlayerCamera : MonoBehaviour
         // start switches at once.
         bool lobbySideCut = (mode == Mode.Solo && desired == Mode.Lobby) || (mode == Mode.Lobby && desired == Mode.Solo);
         bool backToLobby = (mode == Mode.Hold || mode == Mode.Follow) && (desired == Mode.Solo || desired == Mode.Lobby);
-        lobbySideCut |= backToLobby;
+        bool intoMatch = fadeIntoMatch && desired == Mode.Follow && (mode == Mode.Solo || mode == Mode.Lobby);
+        lobbySideCut |= backToLobby || intoMatch;
         if (!lobbySideCut || fade == null)
         {
             mode = desired;
@@ -112,7 +124,7 @@ public class PlayerCamera : MonoBehaviour
         // the camera stayed frozen on the old match until the next car spawned.
         bool inLobby = flow != null && flow.Phase.IsPreMatch();
         if (!inLobby && target == null && (mode == Mode.Follow || mode == Mode.Hold)) return Mode.Hold;
-        bool solo = flow == null || flow.IsSoloView;
+        bool solo = useSoloView && (flow == null || flow.IsSoloView);
         return solo ? Mode.Solo : Mode.Lobby;
     }
 
@@ -127,8 +139,8 @@ public class PlayerCamera : MonoBehaviour
 
     void LobbyView()
     {
-        transform.position = LobbyLayout.CameraPosition;
-        transform.rotation = LobbyLayout.CameraRotation;
+        transform.position = lobbyCameraPoint != null ? lobbyCameraPoint.position : LobbyLayout.CameraPosition;
+        transform.rotation = lobbyCameraPoint != null ? lobbyCameraPoint.rotation : LobbyLayout.CameraRotation;
 
         // Seed the follow direction so the hand-off at match start swings in from behind.
         if (view != null) followDirection = view.forward;

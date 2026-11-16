@@ -6,7 +6,7 @@ public static class MatchmakingConfig
 
     // The match countdown: every match starts this many seconds after the search began (solo, a
     // partial lobby or a full one), bots filling the empty seats. Also the search timer's ceiling.
-    public const float SearchDurationSeconds = 30f;
+    public const float SearchDurationSeconds = 60f;
 
     // Seconds each extra player in the lobby takes off the countdown. 0 = the countdown is always
     // 120 s; a full lobby of ready players starts at once instead (MatchStartRule).

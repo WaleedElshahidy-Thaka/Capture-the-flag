@@ -2,88 +2,158 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
-// The DRIFT bar from the in-game mockup: your drift reserve filling toward stage 3, a marker at each
-// stage threshold, and a flash while a stage window is open ("press Shift now").
+// The DRIFT bar from the in-game mockup, built on a Slider.
+//
+// The bar fills from 0 for EACH stage, CTR-style: steady to the middle, then slower and slower toward the
+// threshold - and each stage slows harder than the last: empty -> stage 1 threshold, then back to empty -> stage 2,
+// then empty -> stage 3. So it always shows "how close am I to the next boost". Reaching a stage
+// opens its window ("press Shift now"): the fill and the marker flash and the label says BOOST n!
+// After stage 3 the bar stays full until the reserve resets.
+//
+// The marker is the Slider's Handle by default - the one small mark that rides on the end of the fill.
 // Reads your car's replicated drift state - display only.
 //
-// Note: the HLD listed "speed or charge meters" under Not shipping. This mockup adds one, so design
-// has changed its mind - worth updating the HLD.
+// Note: the HLD listed "speed or charge meters" under Not shipping; the mockup adds this one.
 public class DriftMeterUI : MonoBehaviour
 {
-    [Tooltip("The bar fill. Image Type = Filled, Fill Method = Horizontal.")]
+    [Tooltip("The DRIFT slider. The script sets Min 0, Max 1 and makes it non-interactable.")]
+    [SerializeField] Slider slider;
+    [Tooltip("The fill's Image (Slider > Fill Area > Fill). Leave empty to use the slider's Fill Rect.")]
     [SerializeField] Image fill;
-    [Tooltip("The bar's full-width area; the stage markers are placed along it.")]
-    [SerializeField] RectTransform barArea;
-    [Tooltip("Thin markers for stage 1, 2 and 3, children of the bar area.")]
-    [SerializeField] RectTransform[] stageMarkers = new RectTransform[3];
+    [Tooltip("The one marker. Leave empty to use the slider's Handle.")]
+    [SerializeField] Graphic marker;
     [SerializeField] TMP_Text label;
 
+    [Header("Fill feel (CTR-style)")]
+    [Tooltip("Where in each stage the bar starts slowing down (0.5 = the middle).")]
+    [SerializeField, Range(0.1f, 0.9f)] float slowdownStart = 0.5f;
+    [Tooltip("How full the bar looks at that point, for stage 1, 2 and 3. Higher = it rushes to the middle and " +
+             "then crawls - so each stage slows harder than the last. 0.5 = no slowdown (linear).")]
+    [SerializeField] float[] fillAtSlowdown = { 0.6f, 0.7f, 0.8f };
+    [Tooltip("Smooths the bar's movement (higher = snappier). 0 = no smoothing.")]
+    [SerializeField, Min(0f)] float smoothing = 12f;
+
     [Header("Colours")]
-    [SerializeField] Color chargingColor = new Color(0.25f, 0.9f, 1f);
-    [Tooltip("Bar colour once each stage is reached (1, 2, 3).")]
-    [SerializeField] Color[] stageColors =
+    [Tooltip("Fill colour while charging toward stage 1, 2 and 3.")]
+    [SerializeField]
+    Color[] chargeColors =
     {
-        new Color(0.3f, 0.6f, 1f),
-        new Color(1f, 0.85f, 0.2f),
-        new Color(1f, 0.35f, 0.9f),
+        new Color(0.25f, 0.9f, 1f),  // toward stage 1
+        new Color(1f, 0.85f, 0.2f),  // toward stage 2
+        new Color(1f, 0.35f, 0.9f),  // toward stage 3
     };
-    [SerializeField] Color markerColor = new Color(1f, 1f, 1f, 0.35f);
-    [SerializeField] Color markerReachedColor = Color.white;
-    [Tooltip("The fill flashes this colour while a stage window is open.")]
+    [Tooltip("Fill colour once stage 3 is reached (bar full).")]
+    [SerializeField] Color maxedColor = new Color(1f, 0.35f, 0.9f);
+    [SerializeField] Color markerColor = Color.white;
+    [Tooltip("The fill and marker flash this colour while a stage window is open.")]
     [SerializeField] Color windowFlashColor = Color.white;
     [SerializeField, Min(0.1f)] float flashSpeed = 12f;
 
-    float lastStage1, lastStage2, lastStage3;
+    [Header("Text")]
+    [SerializeField] string idleText = "DRIFT";
+    [Tooltip("{0} = the stage whose window is open.")]
+    [SerializeField] string windowText = "BOOST {0}!";
+
+    float shownValue;
+    int shownStage = -1;
+
+    // How full the bar looks for a real progress p (0..1) through a stage.
+    //   before slowdownStart: a steady fill up to fillAtSlowdown
+    //   after it:             an ease-out that keeps getting slower, reaching exactly 1 at the threshold
+    // The ease-out starts at the same speed the steady part ends with, so there's no jolt at the middle,
+    // and a higher fillAtSlowdown means a harder slowdown at the end. Each stage uses its own value.
+    // Display only: the bar still fills exactly when the threshold (and its boost window) arrives.
+    float Shape(float p, int stage)
+    {
+        float m = fillAtSlowdown != null && stage < fillAtSlowdown.Length ? fillAtSlowdown[stage] : 0.5f;
+        float s = slowdownStart;
+        m = Mathf.Clamp(m, s, 0.98f); // never below linear, never a dead stop
+
+        if (p <= s) return p / s * m;
+
+        float speedAtMiddle = m / s;                    // slope of the steady part
+        float k = speedAtMiddle * (1f - s) / (1f - m);  // ease-out power that matches it
+        float t = (p - s) / (1f - s);
+        return m + (1f - m) * (1f - Mathf.Pow(1f - t, k));
+    }
+
+    void Awake()
+    {
+        if (slider == null) return;
+        slider.minValue = 0f;
+        slider.maxValue = 1f;
+        slider.wholeNumbers = false;
+        slider.interactable = false; // a meter, not a control
+        slider.transition = Selectable.Transition.None;
+
+        if (fill == null && slider.fillRect != null) fill = slider.fillRect.GetComponent<Image>();
+        if (marker == null && slider.handleRect != null) marker = slider.handleRect.GetComponent<Graphic>();
+    }
 
     void Update()
     {
+        if (slider == null) return;
+
         var local = PlayerRoster.Local;
         if (local == null || !local.HasState || !local.TryGetComponent(out PlayerMovement move)) return;
 
         HandlingValues h = HandlingValuesProvider.Current;
-        float max = Mathf.Max(1f, h.Stage3Threshold);
-        float reserve = Mathf.Clamp(move.DriftReserveValue, 0f, max);
-        int stage = DriftBoost.StageFor(reserve, h);
+        float reserve = Mathf.Max(0f, move.DriftReserveValue);
+        int stage = DriftBoost.StageFor(reserve, h); // stages already reached by the reserve (0..3)
 
-        PlaceMarkers(h, max);
+        // Progress inside the current stage: 0 at the last threshold, 1 at the next one.
+        float progress;
+        if (stage >= 3)
+        {
+            progress = 1f;
+        }
+        else
+        {
+            float from = Threshold(stage, h);
+            float to = Threshold(stage + 1, h);
+            progress = to > from ? Mathf.Clamp01((reserve - from) / (to - from)) : 0f;
+        }
+        // Shape it (slow near the end of the stage), then smooth it. A new stage snaps straight back to
+        // empty instead of sliding down, so the reset reads clearly.
+        float target = stage >= 3 ? 1f : Shape(progress, stage);
+        if (stage != shownStage || smoothing <= 0f)
+            shownValue = target;
+        else
+            shownValue = Mathf.Lerp(shownValue, target, 1f - Mathf.Exp(-smoothing * Time.unscaledDeltaTime));
+        shownStage = stage;
+        slider.SetValueWithoutNotify(shownValue);
+
+        // Colours: the stage it's charging toward, flashing while a window is open.
+        bool window = move.DriftWindowStage > 0;
+        float flash = window ? 0.5f + 0.5f * Mathf.Sin(Time.unscaledTime * flashSpeed) : 0f;
 
         if (fill != null)
         {
-            fill.fillAmount = reserve / max;
-
-            Color c = stage > 0 && stageColors != null && stageColors.Length >= stage ? stageColors[stage - 1] : chargingColor;
-            if (move.DriftWindowStage > 0)
-                c = Color.Lerp(c, windowFlashColor, 0.5f + 0.5f * Mathf.Sin(Time.unscaledTime * flashSpeed));
-            fill.color = c;
+            Color c = stage >= 3 ? maxedColor : ChargeColor(stage);
+            fill.color = Color.Lerp(c, windowFlashColor, flash);
         }
-
-        if (stageMarkers != null)
-            for (int i = 0; i < stageMarkers.Length; i++)
-                if (stageMarkers[i] != null && stageMarkers[i].TryGetComponent(out Graphic g))
-                    g.color = move.DriftStageReached > i ? markerReachedColor : markerColor;
+        if (marker != null)
+            marker.color = Color.Lerp(markerColor, windowFlashColor, flash);
 
         if (label != null)
         {
-            string text = move.DriftWindowStage > 0 ? $"BOOST {move.DriftWindowStage}!" : "DRIFT";
+            string text = window ? (windowText ?? "{0}").Replace("{0}", move.DriftWindowStage.ToString()) : idleText;
             if (label.text != text) label.text = text;
         }
     }
 
-    // Markers sit at each threshold's share of the bar. Only moves them when the tuning changes.
-    void PlaceMarkers(HandlingValues h, float max)
+    // Threshold that starts stage n's bar: 0 for stage 0, then each stage threshold.
+    static float Threshold(int stage, HandlingValues h)
     {
-        if (stageMarkers == null || barArea == null) return;
-        if (h.Stage1Threshold == lastStage1 && h.Stage2Threshold == lastStage2 && h.Stage3Threshold == lastStage3) return;
-        lastStage1 = h.Stage1Threshold; lastStage2 = h.Stage2Threshold; lastStage3 = h.Stage3Threshold;
-
-        float[] at = { h.Stage1Threshold / max, h.Stage2Threshold / max, 1f };
-        for (int i = 0; i < stageMarkers.Length && i < at.Length; i++)
+        switch (stage)
         {
-            var m = stageMarkers[i];
-            if (m == null) continue;
-            m.anchorMin = new Vector2(at[i], m.anchorMin.y);
-            m.anchorMax = new Vector2(at[i], m.anchorMax.y);
-            m.anchoredPosition = new Vector2(0f, m.anchoredPosition.y);
+            case 0: return 0f;
+            case 1: return h.Stage1Threshold;
+            case 2: return h.Stage2Threshold;
+            default: return h.Stage3Threshold;
         }
     }
+
+    Color ChargeColor(int stage) =>
+        chargeColors != null && stage < chargeColors.Length ? chargeColors[stage] : Color.white;
 }

@@ -270,7 +270,7 @@ public class PlayerMovement : NetworkBehaviour
     public void GrantOverdrive()
     {
         DriftBoostState drift = ReadDriftState();
-        DriftBoost.StartBoost(ref drift, 2, driveModel.ForwardSpeed, handling, Runner.Tick.Raw);
+        DriftBoost.StartBoost(ref drift, 3, driveModel.ForwardSpeed, handling, Runner.Tick.Raw);
         WriteDriftState(drift);
     }
 
