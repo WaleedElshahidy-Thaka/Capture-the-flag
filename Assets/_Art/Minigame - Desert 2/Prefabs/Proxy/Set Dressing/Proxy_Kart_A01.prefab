@@ -11,6 +11,7 @@ GameObject:
   - component: {fileID: 3072901793244176963}
   - component: {fileID: 7260687417268495769}
   - component: {fileID: 4095560971136687778}
+  - component: {fileID: 1566288436323926793}
   m_Layer: 0
   m_Name: Proxy_Kart_A01
   m_TagString: Untagged
@@ -92,3 +93,24 @@ MeshRenderer:
   m_SortingOrder: 0
   m_MaskInteraction: 0
   m_AdditionalVertexStreams: {fileID: 0}
+--- !u!65 &1566288436323926793
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7547312729896494595}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 10.038088, y: 3.3263915, z: 7.914152}
+  m_Center: {x: 0.3231115, y: 1.6185452, z: 0.23640263}
