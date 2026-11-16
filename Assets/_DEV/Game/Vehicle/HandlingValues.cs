@@ -243,7 +243,7 @@ public class HandlingValues
 
     [Tooltip("bot_whisker_length, in chassis lengths (~1.5).")]
     [SerializeField, Min(0.1f)]
-    public float botWhiskerChassisLengths = 6f;
+    public float botWhiskerChassisLengths = 1.5f;
 
     [Tooltip("Angle of the forward-left / forward-right whiskers from straight ahead, degrees. Not in FD-07.")]
     [SerializeField, Range(10f, 60f)]
@@ -322,9 +322,82 @@ public class HandlingValues
     [SerializeField, Range(5f, 80f)]
     public float botNavSlowAngle = 30f;
 
-    [Tooltip("Lowest throttle in a sharp corner or while dodging a wall (0..1). Too low and the car crawls.")]
+    [Tooltip("Slowest speed in a hairpin or while dodging a wall, as a share of top speed (0..1). Too low and the car crawls.")]
     [SerializeField, Range(0.1f, 1f)]
     public float botNavCornerThrottle = 0.4f;
+
+    [Tooltip("Use the NavMesh for the whiskers (distance to the drivable edge) instead of physics rays. " +
+             "Matches the route, ignores decorations, sees cliff edges.")]
+    public bool botNavWhiskers = true;
+
+    [Tooltip("How far ahead along the route (metres) the bot looks for corners to brake for.")]
+    [SerializeField, Min(1f)]
+    public float botCornerLookAhead = 15f;
+
+    [Tooltip("Speed for a right-angle (90 degree) corner, as a share of top speed. Gentler corners are faster, " +
+             "hairpins slower (down to botNavCornerThrottle).")]
+    [SerializeField, Range(0.1f, 1f)]
+    public float botCornerSpeedAt90 = 0.45f;
+
+    [Tooltip("How hard the bot plans to slow down before a corner (m/s per second). Lower = brakes earlier.")]
+    [SerializeField, Min(1f)]
+    public float botCornerDecel = 12f;
+
+    [Tooltip("How far over its wanted speed (m/s) the bot coasts before it brakes.")]
+    [SerializeField, Min(0f)]
+    public float botBrakeMargin = 3f;
+
+    [Tooltip("Closing speed toward the steer point (m/s) below which the bot counts as making no progress.")]
+    [SerializeField, Min(0f)]
+    public float botMinProgressSpeed = 1f;
+
+    [Tooltip("No progress for this long (seconds) = stuck even while moving: back off and re-route.")]
+    [SerializeField, Min(0.5f)]
+    public float botNoProgressSeconds = 2.5f;
+
+    // ─── Bots: context steering ──────────────────────────────────────
+    [Tooltip("Context steering: score directions all around (route interest minus wall / car / hazard danger) " +
+             "instead of route + three whiskers. Off = the older whisker steering.")]
+    public bool botUseContextSteering = true;
+
+    [Tooltip("How many directions around the car are scored (8-32).")]
+    [SerializeField, Range(8, 32)]
+    public int botContextDirections = 16;
+
+    [Tooltip("How far ahead the danger probes reach, in seconds of travel at current speed (never shorter than the whisker length).")]
+    [SerializeField, Min(0.1f)]
+    public float botContextLookSeconds = 0.6f;
+
+    [Tooltip("A direction this dangerous (0..1) is ruled out entirely.")]
+    [SerializeField, Range(0.3f, 1f)]
+    public float botContextBlockedDanger = 0.8f;
+
+    [Tooltip("How much of a direction's danger spills into its neighbours - a safety margin around obstacles.")]
+    [SerializeField, Range(0f, 1f)]
+    public float botContextDangerSpread = 0.5f;
+
+    [Tooltip("Small preference for keeping straight on (stops wobbling).")]
+    [SerializeField, Range(0f, 1f)]
+    public float botContextForwardBias = 0.15f;
+
+    [Tooltip("Small preference for last tick's choice (stops flicker between two equal directions).")]
+    [SerializeField, Range(0f, 0.5f)]
+    public float botContextStickiness = 0.1f;
+
+    [Tooltip("Steer around other cars (never the one being chased). Makes bots smarter - FD-07 keeps bots simple; " +
+             "check with design.")]
+    public bool botContextAvoidCars = true;
+
+    [Tooltip("How strongly other cars count as danger (0..1).")]
+    [SerializeField, Range(0f, 1f)]
+    public float botContextCarWeight = 0.7f;
+
+    [Tooltip("Steer around oil patches and charging Repulse Pulses.")]
+    public bool botContextAvoidHazards = true;
+
+    [Tooltip("How strongly hazards count as danger (0..1). Below Blocked Danger, so a bot can still cross oil if it has to.")]
+    [SerializeField, Range(0f, 1f)]
+    public float botContextHazardWeight = 0.6f;
 
     [Tooltip("Whisker length while following a route, as a fraction of normal. The route already keeps clear of walls; full-length whiskers fight it in narrow lanes.")]
     [SerializeField, Range(0.2f, 1f)]

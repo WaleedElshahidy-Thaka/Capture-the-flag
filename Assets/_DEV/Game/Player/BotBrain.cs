@@ -38,6 +38,8 @@ public sealed class BotBrain : NetworkBehaviour
     // Back-off manoeuvre: reverse with opposite lock for this many ticks, then drive on.
     [Networked] private int BackOffTicksRemaining { get; set; }
     [Networked] private int BackOffSide { get; set; }
+    // Ticks without real progress toward the steer point (scraping, circling, pinned) - option 5.
+    [Networked] private int NoProgressTicks { get; set; }
 
     static HandlingValues Values => HandlingValuesProvider.Current;
 
@@ -45,6 +47,7 @@ public sealed class BotBrain : NetworkBehaviour
     // per second serves every bot.
     static PowerUpCrate[] crates = new PowerUpCrate[0];
     static DataCrown dataCrown;
+    static OilPatch[] oilPatches = new OilPatch[0];
     static int lastWorldRefreshTick;
     static bool worldEverRefreshed;
 
@@ -110,15 +113,32 @@ public sealed class BotBrain : NetworkBehaviour
         // Follow the NavMesh route; straight at the target when there's no route.
         Vector3 steerPoint = PursuitPoint(v);
         lastPursuitPoint = steerPoint;
-        float steer = SteerToward(steerPoint, forward, v);
-        float throttle = CornerThrottle(steerPoint, forward, v);
+        // How fast to go, as a share of top speed: slow for the corner right in front, AND for the
+        // next corners along the route before reaching them (brake early, not in the corner).
+        float speedShare = Mathf.Min(CornerThrottle(steerPoint, forward, v), UpcomingCornerShare(v));
 
-        // Whiskers override the route for this tick only.
-        if (TryAvoid(forward, v, out float avoidSteer, out bool noseBlocked))
+        float steer;
+        bool noseBlocked;
+        if (v.botUseContextSteering)
         {
-            steer = avoidSteer;
-            throttle = Mathf.Min(throttle, v.botNavCornerThrottle); // ease off while dodging a wall
+            // One decision from every direction at once: where the route wants to go, minus where
+            // the walls, edges, cars and hazards are (option 8).
+            steer = ContextSteer(steerPoint, forward, v, out float headingDanger, out noseBlocked);
+            speedShare = Mathf.Min(speedShare, Mathf.Lerp(1f, v.botNavCornerThrottle, headingDanger));
         }
+        else
+        {
+            // Older layer: steer at the route, three whiskers override it for this tick only.
+            steer = SteerToward(steerPoint, forward, v);
+            if (TryAvoid(forward, v, out float avoidSteer, out noseBlocked))
+            {
+                steer = avoidSteer;
+                speedShare = Mathf.Min(speedShare, v.botNavCornerThrottle); // ease off while dodging a wall
+            }
+        }
+
+        float throttle = SpeedControl(speedShare * v.TopSpeed, v);
+        UpdateProgress(car, steerPoint, v, tickRate);
 
         // Nose against a wall and nearly stopped: steering can't help - the car has no steering
         // authority at a standstill - so back off instead of waiting for the 1.5 s stuck timer.
@@ -153,6 +173,276 @@ public sealed class BotBrain : NetworkBehaviour
         float slowest = Mathf.Max(full + 1f, 90f); // slowest from here on
         float t = Mathf.InverseLerp(full, slowest, angle);
         return Mathf.Lerp(1f, v.botNavCornerThrottle, t);
+    }
+
+    // ─── Context steering (option 8) ──────────────────────────────────────
+    //
+    // Instead of "follow the route unless a whisker overrides it", every tick the bot scores
+    // botContextDirections directions around itself:
+    //   interest - how well a direction follows the route (toward the pursuit point), plus a little
+    //              for keeping straight on and for the direction it chose last tick (no flicker)
+    //   danger   - walls and cliff edges along it (NavMesh), other cars about to be there, oil
+    //              patches and charging Repulse Pulses - each 0 (clear) to 1 (right there)
+    // The best interest x (1 - danger) wins, blended with its neighbours for a smooth heading. One
+    // decision that sees everything at once, so it slides around a rock instead of hitting it,
+    // threads between two cars, and never flip-flops between two whiskers.
+    // The probe reaches further at speed (botContextLookSeconds ahead), so fast bots react early.
+    const int MaxSlots = 32;
+    readonly float[] interest = new float[MaxSlots];
+    readonly float[] danger = new float[MaxSlots];
+    readonly float[] dangerSpread = new float[MaxSlots];
+    readonly Vector3[] slotDir = new Vector3[MaxSlots];
+    int slotCount;
+    int lastChosen = -1;
+    Vector3 lastContextDir;
+    float lastProbe;
+    NetworkId chaseTargetId;
+
+    float ContextSteer(Vector3 steerPoint, Vector3 forward, HandlingValues v, out float chosenDanger, out bool noseBlocked)
+    {
+        int n = Mathf.Clamp(v.botContextDirections, 8, MaxSlots);
+        slotCount = n;
+        Vector3 position = transform.position;
+        Vector3 origin = position + Vector3.up * 0.5f;
+
+        Vector3 goal = steerPoint - position;
+        goal.y = 0f;
+        goal = goal.sqrMagnitude > 0.01f ? goal.normalized : forward;
+
+        float probe = Mathf.Max(chassisLength * v.botWhiskerChassisLengths, FlatSpeed() * v.botContextLookSeconds);
+        lastProbe = probe;
+        PrepareNavWhiskers(v);
+
+        float forwardWall = float.MaxValue;
+        for (int i = 0; i < n; i++)
+        {
+            Vector3 dir = Quaternion.AngleAxis(360f * i / n, Vector3.up) * forward; // slot 0 = straight ahead
+            slotDir[i] = dir;
+
+            interest[i] = Mathf.Max(0f, Vector3.Dot(dir, goal))
+                        + v.botContextForwardBias * Mathf.Max(0f, Vector3.Dot(dir, forward))
+                        + (i == lastChosen ? v.botContextStickiness : 0f);
+
+            // Walls and cliff edges: NavMesh rays (physics rays when hugging a wall).
+            danger[i] = Whisker(origin, dir, probe, out float wall) ? 1f - wall / probe : 0f;
+            if (i == 0 && wall < probe) forwardWall = wall;
+        }
+
+        if (v.botContextAvoidCars) AddCarDanger(n, probe, v);
+        if (v.botContextAvoidHazards) AddHazardDanger(n, probe, v);
+
+        // Spread a little danger into the neighbouring directions: a margin, so the chosen heading
+        // doesn't skim the very edge of a rock.
+        for (int i = 0; i < n; i++)
+        {
+            float left = danger[(i + n - 1) % n], right = danger[(i + 1) % n];
+            dangerSpread[i] = Mathf.Max(danger[i], v.botContextDangerSpread * Mathf.Max(left, right));
+        }
+
+        int best = -1;
+        float bestScore = 0f;
+        for (int i = 0; i < n; i++)
+        {
+            if (dangerSpread[i] >= v.botContextBlockedDanger) continue; // too close: not an option
+            float score = interest[i] * (1f - dangerSpread[i]);
+            if (score > bestScore) { bestScore = score; best = i; }
+        }
+
+        noseBlocked = forwardWall < chassisLength * v.botBlockedDistanceChassisLengths;
+
+        if (best < 0)
+        {
+            // Nothing useful is open (boxed in, or the only open way is backwards): turn toward the
+            // least dangerous side and let the back-off / stuck logic do the rest.
+            int safest = 0;
+            for (int i = 1; i < n; i++) if (dangerSpread[i] < dangerSpread[safest]) safest = i;
+            lastChosen = -1;
+            lastContextDir = slotDir[safest];
+            chosenDanger = 1f;
+            float side = Vector3.SignedAngle(forward, slotDir[safest], Vector3.up);
+            return side >= 0f ? 1f : -1f;
+        }
+
+        // Smooth heading: lean toward the better neighbour, weighted by its score.
+        int prev = (best + n - 1) % n, next = (best + 1) % n;
+        float sPrev = interest[prev] * (1f - dangerSpread[prev]);
+        float sNext = interest[next] * (1f - dangerSpread[next]);
+        Vector3 heading = slotDir[best] * bestScore
+                        + slotDir[prev] * Mathf.Max(0f, sPrev) * 0.5f
+                        + slotDir[next] * Mathf.Max(0f, sNext) * 0.5f;
+        heading.y = 0f;
+        heading = heading.sqrMagnitude > 0.0001f ? heading.normalized : slotDir[best];
+
+        lastChosen = best;
+        lastContextDir = heading;
+        chosenDanger = dangerSpread[best];
+        return SteerToward(position + heading * 10f, forward, v);
+    }
+
+    // Other cars, where they're about to be (relative motion over the look time). The car being
+    // chased is never danger - hitting it is the point. In Run mode every car is danger.
+    void AddCarDanger(int n, float probe, HandlingValues v)
+    {
+        Vector3 position = transform.position;
+        Vector3 myVelocity = body.linearVelocity;
+        var cars = PlayerRoster.Active;
+
+        for (int c = 0; c < cars.Count; c++)
+        {
+            var car = cars[c];
+            if (car == null || !car.HasState || car.Object == Object) continue;
+            if (Mode == BotMode.Chase && car.Object.Id == chaseTargetId) continue;
+
+            Vector3 rel = car.transform.position - position;
+            Vector3 relVel = (car.TryGetComponent(out Rigidbody rb) ? rb.linearVelocity : Vector3.zero) - myVelocity;
+            rel.y = 0f;
+            relVel.y = 0f;
+
+            // Closest approach within the look time.
+            float t = relVel.sqrMagnitude > 0.01f
+                ? Mathf.Clamp(-Vector3.Dot(rel, relVel) / relVel.sqrMagnitude, 0f, v.botContextLookSeconds)
+                : 0f;
+            Vector3 future = rel + relVel * t;
+
+            float gap = future.magnitude - chassisLength; // body to body, roughly
+            if (gap > probe) continue;
+
+            float weight = Mathf.Clamp01(1f - Mathf.Max(0f, gap) / probe) * v.botContextCarWeight;
+            AddDangerCone(n, future, chassisLength, weight);
+        }
+    }
+
+    // Oil patches and charging Repulse Pulses: circles to steer around.
+    void AddHazardDanger(int n, float probe, HandlingValues v)
+    {
+        Vector3 position = transform.position;
+
+        for (int i = 0; i < oilPatches.Length; i++)
+        {
+            var patch = oilPatches[i];
+            if (patch == null || !patch.HasState || !patch.IsActive) continue;
+            AddCircleDanger(n, patch.Center - position, patch.Radius, probe, v.botContextHazardWeight);
+        }
+
+        var cars = PlayerRoster.Active;
+        for (int c = 0; c < cars.Count; c++)
+        {
+            var car = cars[c];
+            if (car == null || !car.HasState || car.Object == Object) continue;
+            if (!car.TryGetComponent(out RepulsePulse pulse) || !pulse.IsCharging) continue;
+            AddCircleDanger(n, car.transform.position - position, pulse.Radius, probe, v.botContextHazardWeight);
+        }
+    }
+
+    void AddCircleDanger(int n, Vector3 toCentre, float radius, float probe, float maxWeight)
+    {
+        toCentre.y = 0f;
+        float gap = toCentre.magnitude - radius;
+        if (gap > probe) return;
+        float weight = Mathf.Clamp01(1f - Mathf.Max(0f, gap) / probe) * maxWeight;
+        AddDangerCone(n, toCentre, radius, weight);
+    }
+
+    // Marks every direction that points into a circle of 'size' at 'offset' as dangerous, strongest
+    // straight at its centre.
+    void AddDangerCone(int n, Vector3 offset, float size, float weight)
+    {
+        float distance = offset.magnitude;
+        if (distance < 0.01f) { for (int i = 0; i < n; i++) danger[i] = Mathf.Max(danger[i], weight); return; }
+
+        Vector3 dir = offset / distance;
+        float halfAngle = Mathf.Atan2(size, distance) * Mathf.Rad2Deg + 360f / n * 0.5f;
+        float cosLimit = Mathf.Cos(Mathf.Min(89f, halfAngle) * Mathf.Deg2Rad);
+
+        for (int i = 0; i < n; i++)
+        {
+            float align = Vector3.Dot(slotDir[i], dir);
+            if (align < cosLimit) continue;
+            float k = Mathf.InverseLerp(cosLimit, 1f, align); // 0 at the cone's edge, 1 dead centre
+            danger[i] = Mathf.Max(danger[i], weight * Mathf.Lerp(0.5f, 1f, k));
+        }
+    }
+
+    // ─── Speed (option 4) ─────────────────────────────────────────────────
+    //
+    // The drive model's throttle is on/off: any positive input drives toward full top speed. So a
+    // "40% throttle" was really full throttle - the old corner slowing never slowed anything. To go
+    // slower, the bot now COASTS (no throttle) or BRAKES (-1) until it's down to the speed it wants.
+    float SpeedControl(float desiredSpeed, HandlingValues v)
+    {
+        float speed = Vector3.Dot(body.linearVelocity, transform.forward);
+        if (speed > desiredSpeed + v.botBrakeMargin && speed > 1f) return -1f; // well too fast: brake
+        if (speed > desiredSpeed) return 0f;                                     // a bit too fast: coast
+        return 1f;
+    }
+
+    // Looks along the route for the coming corners and returns the share of top speed it can carry
+    // NOW and still be slow enough when it gets there (braking at botCornerDecel). Sharper corner =
+    // lower corner speed; nearer corner = less room to brake.
+    float UpcomingCornerShare(HandlingValues v)
+    {
+        if (!v.botNavSlowForCorners || !hasRoute || v.TopSpeed <= 0f) return 1f;
+
+        Vector3 position = transform.position;
+        float distance = FlatDistance(position, corners[cornerIndex]); // to the end of the current segment
+        float allowed = v.TopSpeed;
+
+        for (int i = cornerIndex; i < cornerCount - 1 && distance <= v.botCornerLookAhead; i++)
+        {
+            Vector3 inDir = corners[i] - corners[i - 1];
+            Vector3 outDir = corners[i + 1] - corners[i];
+            inDir.y = 0f;
+            outDir.y = 0f;
+
+            if (inDir.sqrMagnitude > 0.01f && outDir.sqrMagnitude > 0.01f)
+            {
+                float angle = Vector3.Angle(inDir, outDir); // 0 = straight on, 90 = right-angle turn
+                float cornerShare = angle <= 90f
+                    ? Mathf.Lerp(1f, v.botCornerSpeedAt90, angle / 90f)
+                    : Mathf.Lerp(v.botCornerSpeedAt90, v.botNavCornerThrottle, (angle - 90f) / 90f);
+                float cornerSpeed = cornerShare * v.TopSpeed;
+
+                // Fastest speed from which it can still brake down to cornerSpeed in 'distance'.
+                float canCarry = Mathf.Sqrt(cornerSpeed * cornerSpeed + 2f * v.botCornerDecel * distance);
+                allowed = Mathf.Min(allowed, canCarry);
+            }
+
+            distance += FlatDistance(corners[i], corners[i + 1]);
+        }
+
+        return Mathf.Clamp01(allowed / v.TopSpeed);
+    }
+
+    // ─── Progress (option 5) ──────────────────────────────────────────────
+    //
+    // The speed-based stuck timer misses a car that IS moving but getting nowhere: scraping along a
+    // wall, circling a rock, pushed back by another car. This measures closing speed toward the point
+    // it's steering at; too little for botNoProgressSeconds = stuck: back off and route again.
+    void UpdateProgress(PlayerMovement car, Vector3 steerPoint, HandlingValues v, int tickRate)
+    {
+        if (!CanDrive() || car.IsSpinningOut)
+        {
+            NoProgressTicks = 0;
+            return;
+        }
+
+        Vector3 to = steerPoint - transform.position;
+        to.y = 0f;
+        if (to.sqrMagnitude < 1f) { NoProgressTicks = 0; return; } // already there
+
+        Vector3 velocity = body.linearVelocity;
+        velocity.y = 0f;
+        float closing = Vector3.Dot(velocity, to.normalized);
+
+        if (closing < v.botMinProgressSpeed) NoProgressTicks++;
+        else NoProgressTicks = Mathf.Max(0, NoProgressTicks - 2); // real progress clears it quickly
+
+        if (NoProgressTicks < Mathf.Max(1, Mathf.RoundToInt(v.botNoProgressSeconds * tickRate))) return;
+
+        NoProgressTicks = 0;
+        repathNow = true;
+        if (v.botAllowBackOff && BackOffTicksRemaining <= 0) StartBackOff(v, tickRate);
+        if (logModeChanges) Debug.Log($"[Bot] {name}: no progress for {v.botNoProgressSeconds:F1}s - backing off and re-routing");
     }
 
     PlayerNetInput MakeInput(float throttle, float steer)
@@ -252,9 +542,13 @@ public sealed class BotBrain : NetworkBehaviour
     Vector3 ChaseTarget(CrownMatchState crown, HandlingValues v)
     {
         // Held: drive at the holder.
+        chaseTargetId = default;
         if (crown != null && crown.HasHolder &&
             Runner.TryFindObject(crown.HolderId, out NetworkObject holder))
+        {
+            chaseTargetId = holder.Id; // context steering never treats the car we're chasing as danger
             return holder.transform.position;
+        }
 
         // Unheld (telegraphing or free): drive at the Crown - the opening race.
         if (dataCrown != null && dataCrown.Object != null && dataCrown.Object.IsValid)
@@ -422,6 +716,7 @@ public sealed class BotBrain : NetworkBehaviour
         // ones fire constantly in narrow lanes and fight the route, steering the car off it.
         float length = chassisLength * v.botWhiskerChassisLengths * (hasRoute ? v.botNavWhiskerScale : 1f);
         Vector3 origin = transform.position + Vector3.up * 0.5f;
+        PrepareNavWhiskers(v);
 
         Vector3 leftDir = Quaternion.AngleAxis(-v.botWhiskerSideAngle, Vector3.up) * forward;
         Vector3 rightDir = Quaternion.AngleAxis(v.botWhiskerSideAngle, Vector3.up) * forward;
@@ -478,9 +773,53 @@ public sealed class BotBrain : NetworkBehaviour
         if (logModeChanges) Debug.Log($"[Bot] {name}: backing off, turning {(BackOffSide > 0 ? "right" : "left")}");
     }
 
+    // ─── NavMesh whiskers (option 3) ─────────────────────────────────────
+    //
+    // Whiskers measure to the NavMesh edge instead of raycasting colliders: they agree exactly with
+    // the route, ignore decorations, and catch cliff edges (the plateau) that physics rays sail over.
+    // The edge sits one agent radius in from the wall, so that radius is added back to give the
+    // same "distance to the wall" the physics whiskers report. A car pressed so close to a wall that
+    // it's off the mesh falls back to physics rays for that tick (they're exact up close).
+    bool navWhiskersReady;
+    Vector3 navWhiskerStart;
+    float navAgentRadius;
+
+    void PrepareNavWhiskers(HandlingValues v)
+    {
+        navWhiskersReady = false;
+        if (!v.botUseNavMesh || !v.botNavWhiskers || !TryGetAgentType(v, transform.position)) return;
+
+        var filter = new NavMeshQueryFilter { agentTypeID = navAgentTypeId, areaMask = NavMesh.AllAreas };
+        if (!NavMesh.SamplePosition(transform.position, out NavMeshHit hit, 1.5f, filter)) return;
+
+        Vector3 offset = hit.position - transform.position;
+        offset.y = 0f;
+        if (offset.sqrMagnitude > 0.3f * 0.3f) return; // off the mesh (hugging a wall): use physics
+
+        navWhiskerStart = hit.position;
+        navAgentRadius = NavMesh.GetSettingsByID(navAgentTypeId).agentRadius;
+        navWhiskersReady = true;
+    }
+
     bool Whisker(Vector3 origin, Vector3 direction, float length, out float distance)
     {
         distance = length;
+
+        if (navWhiskersReady)
+        {
+            var filter = new NavMeshQueryFilter { agentTypeID = navAgentTypeId, areaMask = NavMesh.AllAreas };
+            if (NavMesh.Raycast(navWhiskerStart, navWhiskerStart + direction * length, out NavMeshHit edge, filter))
+            {
+                float toWall = edge.distance + navAgentRadius;
+                if (toWall < length)
+                {
+                    distance = toWall;
+                    return true;
+                }
+            }
+            return false;
+        }
+
         int count = Physics.RaycastNonAlloc(origin, direction, hits, length, ~0, QueryTriggerInteraction.Ignore);
 
         bool found = false;
@@ -711,6 +1050,7 @@ public sealed class BotBrain : NetworkBehaviour
         lastWorldRefreshTick = tick;
         crates = FindObjectsByType<PowerUpCrate>(FindObjectsSortMode.None);
         dataCrown = FindFirstObjectByType<DataCrown>();
+        oilPatches = FindObjectsByType<OilPatch>(FindObjectsSortMode.None);
     }
 
     float MeasureChassisLength()
@@ -730,6 +1070,19 @@ public sealed class BotBrain : NetworkBehaviour
         if (!drawGizmos || Object == null || !Object.IsValid || !Object.HasStateAuthority) return;
 
         Vector3 origin = transform.position + Vector3.up * 0.5f;
+
+        // Context steering: each direction red by danger (short = blocked), the chosen heading green.
+        if (Values.botUseContextSteering && slotCount > 0)
+        {
+            for (int i = 0; i < slotCount; i++)
+            {
+                float d = dangerSpread[i];
+                Gizmos.color = Color.Lerp(new Color(1f, 1f, 1f, 0.25f), Color.red, d);
+                Gizmos.DrawRay(origin, slotDir[i] * lastProbe * (1f - d * 0.7f));
+            }
+            Gizmos.color = Color.green;
+            Gizmos.DrawRay(origin + Vector3.up * 0.1f, lastContextDir * lastProbe);
+        }
 
         Gizmos.color = Mode == BotMode.Run ? Color.yellow : Mode == BotMode.Recover ? Color.magenta : Color.cyan;
         Gizmos.DrawLine(origin, TargetPoint);
@@ -766,6 +1119,7 @@ public sealed class BotBrain : NetworkBehaviour
     {
         crates = new PowerUpCrate[0];
         dataCrown = null;
+        oilPatches = new OilPatch[0];
         lastWorldRefreshTick = 0;
         worldEverRefreshed = false;
         navAgentTypeId = -1;

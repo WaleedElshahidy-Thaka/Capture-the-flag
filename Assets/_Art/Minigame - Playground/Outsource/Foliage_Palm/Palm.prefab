@@ -64,6 +64,8 @@ MeshRenderer:
   m_RayTracingAccelStructBuildFlagsOverride: 0
   m_RayTracingAccelStructBuildFlags: 1
   m_SmallMeshCulling: 1
+  m_ForceMeshLod: -1
+  m_MeshLodSelectionBias: 0
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
@@ -87,9 +89,11 @@ MeshRenderer:
   m_AutoUVMaxDistance: 0.5
   m_AutoUVMaxAngle: 89
   m_LightmapParameters: {fileID: 0}
+  m_GlobalIlluminationMeshLod: 0
   m_SortingLayerID: 0
   m_SortingLayer: 0
   m_SortingOrder: 0
+  m_MaskInteraction: 0
   m_AdditionalVertexStreams: {fileID: 0}
 --- !u!205 &-2280252690547295670
 LODGroup:
@@ -129,8 +133,8 @@ BoxCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Size: {x: 0.019178968, y: 0.14192256, z: 0.016758867}
-  m_Center: {x: 0.0030436444, y: 0.07096128, z: -0.0028513386}
+  m_Size: {x: 0.011553023, y: 0.14192256, z: 0.009752173}
+  m_Center: {x: 0.0006832302, y: 0.07096128, z: -0.0016338495}
 --- !u!208 &2661136574533606429
 NavMeshObstacle:
   m_ObjectHideFlags: 0
@@ -141,9 +145,9 @@ NavMeshObstacle:
   m_Enabled: 1
   serializedVersion: 3
   m_Shape: 1
-  m_Extents: {x: 0.009589485, y: 0.0709613, z: 0.008379435}
+  m_Extents: {x: 0.00577651, y: 0.0709613, z: 0.0048760865}
   m_MoveThreshold: 0.1
   m_Carve: 1
   m_CarveOnlyStationary: 1
-  m_Center: {x: 0.003043644, y: 0.07096128, z: -0.002851339}
+  m_Center: {x: 0.0006832302, y: 0.07096128, z: -0.001633849}
   m_TimeToStationary: 0.5
