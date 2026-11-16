@@ -74,13 +74,13 @@ public class HandlingValues
     public float repulseMaxHeightDifference = 3f;
 
     [Header("Longitudinal")]
-    public float TopSpeed = 22f;              // m/s, nominal ceiling under throttle alone
-    public float Acceleration = 14f;          // m/s²
+    public float TopSpeed = 21.21f;              // m/s, nominal ceiling under throttle alone
+    public float Acceleration = 12.6f;          // m/s²
     public float BrakeStrength = 26f;         // m/s²
     public float CoastDrag = 4f;              // m/s², off throttle
-    public float ReverseTopSpeed = 8f;        // m/s
-    public float ReverseDelay = 0.35f;        // s, brake held at rest before reverse engages
-    public float OverspeedDecay = 1.8f;         // m/s², how fast speed above TopSpeed falls back
+    public float ReverseTopSpeed = 12f;        // m/s
+    public float ReverseDelay = 0.1f;        // s, brake held at rest before reverse engages
+    public float OverspeedDecay = 1f;         // m/s², how fast speed above TopSpeed falls back
 
     [Header("Boost")]
     [Tooltip("Boost speed multiplier the drive model reads while its Boost input is set. PlayerMovement overwrites it " +
@@ -94,15 +94,15 @@ public class HandlingValues
     [Tooltip("Yaw authority vs |speed| / TopSpeed. Zero at a standstill (no pivoting in place).")]
     public AnimationCurve SpeedScalingCurve = new AnimationCurve(
         new Keyframe(0f, 0f, 0f, 13.333333f),
-        new Keyframe(0.075f, 1f, 13.333333f, -0.27027027f),
-        new Keyframe(1f, 0.75f, -0.27027027f, 0f));
+        new Keyframe(0.075f, 1f, 13.333333f, -0.47297297f),
+        new Keyframe(1f, 0.5625f, -0.47297297f, 0f));
 
     [Header("Lateral")]
     [Tooltip("Sideways speed decay per second: exp(-rate * dt). ~20 = grippy.")]
     public float GripRate = 23f;
     [Tooltip("OBSOLETE: the Left Ctrl grip button is not in the Driving Foundation. PlayerMovement no longer " +
              "passes the Drift input to the drive model. Sliding grip is GripRate x DriftGripMultiplier.")]
-    public float DriftGripRate = 2.8f;
+    public float DriftGripRate = 8f;
 
     [Header("Airborne")]
     [Tooltip("Multiplier on gravity (the suspension carries the car while grounded).")]
@@ -168,20 +168,20 @@ public class HandlingValues
     [Tooltip("(mine) Steer needed at landing to commit a drift.")]
     public float SteerCommitDeadzone = 0.2f;
     [Tooltip("Units/tick at optimal slip. Race value; Glowtag overrides back to it. Range 0-2.5.")]
-    public float ReserveGainRate = 1.9f;
-    public float OptimalSlipAngle = 35f;           // degrees
+    public float ReserveGainRate = 3.4f;
+    public float OptimalSlipAngle = 18f;           // degrees
     [Tooltip("(mine) Slip angle at which charge bottoms out.")]
     public float MaxSlipAngle = 70f;
     [Tooltip("(mine) Charge scale at ~zero speed; the doc says speed 'scales mildly'.")]
     public float SpeedChargeFloor = 0.6f;
-    public float Stage1Threshold = 45f;
-    public float Stage2Threshold = 100f;
-    public float Stage3Threshold = 170f;
+    public float Stage1Threshold = 61f;
+    public float Stage2Threshold = 163f;
+    public float Stage3Threshold = 265f;
 
     [Header("Drift & Boost: stage windows and boost (Hold-to-Boost v0.1)")]
     [Tooltip("Ticks a stage window stays open after its threshold is crossed (~0.33 s at 60 Hz). " +
              "The platform's accessibility dial: widen this, and nothing else, if the game proves too hard.")]
-    public int StageWindowTicks = 40;//20
+    public int StageWindowTicks = 20;//20
     [Tooltip("Ticks spent NOT sliding before reserve and stage progress zero (~0.75 s). Long enough to re-hop " +
              "the other way and keep the chain; too long and a chain never ends.")]
     public int StageResetTicks = 45;
@@ -201,14 +201,14 @@ public class HandlingValues
 
     [Header("Drift & Boost: sliding handling")]
     [Tooltip("Multiplier on GripRate while Sliding. Automatic, not a button.")]
-    public float DriftGripMultiplier = 0.28f;//0.38
+    public float DriftGripMultiplier = 0.35f;//0.38
     [Tooltip("Multiplier on MaxYawRate while Sliding (Arena preset value).")]
     public float DriftRotationAuthority = 1.5f;
     [Tooltip("(mine) Direction lock: steer FULLY AGAINST the slide = this much turn into it (widest arc). " +
              "Above 0 so the slide never flips or straightens out.")]
-    [Range(0f, 1f)] public float DriftArcWide = 0.45f;
+    [Range(0f, 1f)] public float DriftArcWide = 0.449f;
     [Tooltip("(mine) Direction lock: steer fully INTO the slide = this much turn (tightest arc). No steer = halfway.")]
-    [Range(0f, 1f)] public float DriftArcTight = 1f;
+    [Range(0f, 1f)] public float DriftArcTight = 0.887f;
 
     // ─── Surfaces (Handling Profiles) ───────────────────────────────────
     // Untagged geometry is Default (FD-06). Oil only exists as runtime patches from the Oil Slick
@@ -243,7 +243,7 @@ public class HandlingValues
 
     [Tooltip("bot_whisker_length, in chassis lengths (~1.5).")]
     [SerializeField, Min(0.1f)]
-    public float botWhiskerChassisLengths = 1.5f;
+    public float botWhiskerChassisLengths = 6f;
 
     [Tooltip("Angle of the forward-left / forward-right whiskers from straight ahead, degrees. Not in FD-07.")]
     [SerializeField, Range(10f, 60f)]
