@@ -8,30 +8,6 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 0}
     m_Modifications:
-    - target: {fileID: -8147103585155691096, guid: 9c0c8af6eea4175459bcd4c59e38efb6, type: 3}
-      propertyPath: m_LocalPosition.y
-      value: 126
-      objectReference: {fileID: 0}
-    - target: {fileID: -6806113505058756306, guid: 9c0c8af6eea4175459bcd4c59e38efb6, type: 3}
-      propertyPath: m_LocalPosition.y
-      value: 134.96848
-      objectReference: {fileID: 0}
-    - target: {fileID: -6013172089872773537, guid: 9c0c8af6eea4175459bcd4c59e38efb6, type: 3}
-      propertyPath: m_LocalPosition.y
-      value: 126
-      objectReference: {fileID: 0}
-    - target: {fileID: -2503716394766596852, guid: 9c0c8af6eea4175459bcd4c59e38efb6, type: 3}
-      propertyPath: m_LocalPosition.y
-      value: 125.999985
-      objectReference: {fileID: 0}
-    - target: {fileID: -176528939928198158, guid: 9c0c8af6eea4175459bcd4c59e38efb6, type: 3}
-      propertyPath: m_LocalPosition.y
-      value: 171.241
-      objectReference: {fileID: 0}
-    - target: {fileID: 7322970722488551720, guid: 9c0c8af6eea4175459bcd4c59e38efb6, type: 3}
-      propertyPath: m_LocalPosition.y
-      value: 153.19011
-      objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 7927058d704e27641b1aa73d13d6fdb8, type: 3}
       propertyPath: m_LocalScale.x
       value: 1
@@ -92,8 +68,82 @@ PrefabInstance:
       propertyPath: m_Name
       value: SM_Braizer_A01 (8)
       objectReference: {fileID: 0}
+    - target: {fileID: -8147103585155691096, guid: 9c0c8af6eea4175459bcd4c59e38efb6, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 126
+      objectReference: {fileID: 0}
+    - target: {fileID: -6806113505058756306, guid: 9c0c8af6eea4175459bcd4c59e38efb6, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 134.96848
+      objectReference: {fileID: 0}
+    - target: {fileID: -6013172089872773537, guid: 9c0c8af6eea4175459bcd4c59e38efb6, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 126
+      objectReference: {fileID: 0}
+    - target: {fileID: -2503716394766596852, guid: 9c0c8af6eea4175459bcd4c59e38efb6, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 125.999985
+      objectReference: {fileID: 0}
+    - target: {fileID: -176528939928198158, guid: 9c0c8af6eea4175459bcd4c59e38efb6, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 171.241
+      objectReference: {fileID: 0}
+    - target: {fileID: 7322970722488551720, guid: 9c0c8af6eea4175459bcd4c59e38efb6, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 153.19011
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
-    m_AddedComponents: []
+    m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: 7927058d704e27641b1aa73d13d6fdb8, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 6571795188409235011}
+    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: 7927058d704e27641b1aa73d13d6fdb8, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 3294358665385846878}
   m_SourcePrefab: {fileID: 100100000, guid: 7927058d704e27641b1aa73d13d6fdb8, type: 3}
+--- !u!1 &1338564413843934512 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 919132149155446097, guid: 7927058d704e27641b1aa73d13d6fdb8, type: 3}
+  m_PrefabInstance: {fileID: 2185056090224898145}
+  m_PrefabAsset: {fileID: 0}
+--- !u!136 &6571795188409235011
+CapsuleCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1338564413843934512}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 2
+  m_Radius: 1.526075
+  m_Height: 6.1535068
+  m_Direction: 1
+  m_Center: {x: -0.030349255, y: 3.0555637, z: -0.0011627674}
+--- !u!208 &3294358665385846878
+NavMeshObstacle:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1338564413843934512}
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Shape: 0
+  m_Extents: {x: 1.526, y: 3.0770001, z: 1.526}
+  m_MoveThreshold: 0.1
+  m_Carve: 1
+  m_CarveOnlyStationary: 1
+  m_Center: {x: -0.030000001, y: 3.0560002, z: -0.001}
+  m_TimeToStationary: 0.5
