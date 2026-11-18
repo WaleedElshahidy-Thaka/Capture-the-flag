@@ -4,8 +4,8 @@ using UnityEngine.UI;
 
 // The DRIFT bar from the in-game mockup, built on a Slider.
 //
-// The bar fills from 0 for EACH stage, CTR-style: steady to the middle, then slower and slower toward the
-// threshold - and each stage slows harder than the last: empty -> stage 1 threshold, then back to empty -> stage 2,
+// The bar fills from 0 for EACH stage up to the FLAG, CTR-style: steady to the middle, then slower and
+// slower as it nears the flag (it lands on the flag exactly when the stage is reached) - and each stage slows harder than the last: empty -> stage 1 threshold, then back to empty -> stage 2,
 // then empty -> stage 3. So it always shows "how close am I to the next boost". Reaching a stage
 // opens its window ("press Shift now"): the fill and the marker flash and the label says BOOST n!
 // After stage 3 the bar stays full until the reserve resets.
@@ -23,6 +23,19 @@ public class DriftMeterUI : MonoBehaviour
     [Tooltip("The one marker. Leave empty to use the slider's Handle.")]
     [SerializeField] Graphic marker;
     [SerializeField] TMP_Text label;
+
+    [Header("Flag")]
+    [Tooltip("The flag on the bar (the boost line). The fill reaches it exactly when the stage is reached, " +
+             "slowing down as it gets close.")]
+    [SerializeField] RectTransform flag;
+    [Tooltip("Where the flag sits along the bar (0 = left end, 1 = right end).")]
+    [SerializeField, Range(0.1f, 1f)] float flagPosition = 0.85f;
+    [Tooltip("Move the flag to Flag Position along its parent on start. Off = leave it where you put it " +
+             "(then set Flag Position to match it).")]
+    [SerializeField] bool placeFlag = true;
+    [Tooltip("While a boost window is open, the fill carries on from the flag to the end of the bar over the " +
+             "window's length - the 'press now' zone. Off = it waits at the flag.")]
+    [SerializeField] bool fillPastFlagDuringWindow = true;
 
     [Header("Fill feel (CTR-style)")]
     [Tooltip("Where in each stage the bar starts slowing down (0.5 = the middle).")]
@@ -56,6 +69,8 @@ public class DriftMeterUI : MonoBehaviour
 
     float shownValue;
     int shownStage = -1;
+    int shownWindowStage;
+    float windowOpenedAt;
 
     // How full the bar looks for a real progress p (0..1) through a stage.
     //   before slowdownStart: a steady fill up to fillAtSlowdown
@@ -88,6 +103,14 @@ public class DriftMeterUI : MonoBehaviour
 
         if (fill == null && slider.fillRect != null) fill = slider.fillRect.GetComponent<Image>();
         if (marker == null && slider.handleRect != null) marker = slider.handleRect.GetComponent<Graphic>();
+
+        // Put the flag at its spot along its parent (anchors only, so it follows the bar's size).
+        if (flag != null && placeFlag)
+        {
+            flag.anchorMin = new Vector2(flagPosition, flag.anchorMin.y);
+            flag.anchorMax = new Vector2(flagPosition, flag.anchorMax.y);
+            flag.anchoredPosition = new Vector2(0f, flag.anchoredPosition.y);
+        }
     }
 
     void Update()
@@ -113,9 +136,25 @@ public class DriftMeterUI : MonoBehaviour
             float to = Threshold(stage + 1, h);
             progress = to > from ? Mathf.Clamp01((reserve - from) / (to - from)) : 0f;
         }
-        // Shape it (slow near the end of the stage), then smooth it. A new stage snaps straight back to
-        // empty instead of sliding down, so the reset reads clearly.
-        float target = stage >= 3 ? 1f : Shape(progress, stage);
+        // Shape it (slower and slower as it nears the flag), scaled so it lands exactly ON the flag when
+        // the stage is reached. A new stage snaps straight back to empty, so the reset reads clearly.
+        bool window = move.DriftWindowStage > 0;
+        if (window && move.DriftWindowStage != shownWindowStage) windowOpenedAt = Time.unscaledTime;
+        shownWindowStage = move.DriftWindowStage;
+
+        float target;
+        if (window)
+        {
+            // Boost window open: past the flag, toward the end of the bar over the window's length.
+            float windowSeconds = Mathf.Max(0.05f, h.StageWindowTicks / (float)Mathf.Max(1, local.Runner.TickRate));
+            float t = fillPastFlagDuringWindow ? Mathf.Clamp01((Time.unscaledTime - windowOpenedAt) / windowSeconds) : 0f;
+            target = Mathf.Lerp(flagPosition, 1f, t);
+        }
+        else
+        {
+            target = stage >= 3 ? 1f : flagPosition * Shape(progress, stage);
+        }
+
         if (stage != shownStage || smoothing <= 0f)
             shownValue = target;
         else
@@ -124,7 +163,6 @@ public class DriftMeterUI : MonoBehaviour
         slider.SetValueWithoutNotify(shownValue);
 
         // Colours: the stage it's charging toward, flashing while a window is open.
-        bool window = move.DriftWindowStage > 0;
         float flash = window ? 0.5f + 0.5f * Mathf.Sin(Time.unscaledTime * flashSpeed) : 0f;
 
         if (fill != null)
@@ -134,6 +172,8 @@ public class DriftMeterUI : MonoBehaviour
         }
         if (marker != null)
             marker.color = Color.Lerp(markerColor, windowFlashColor, flash);
+        if (flag != null && flag.TryGetComponent(out Graphic flagGraphic))
+            flagGraphic.color = Color.Lerp(markerColor, windowFlashColor, flash);
 
         if (label != null)
         {
