@@ -275,7 +275,16 @@ public class HandlingValues
 
     [Tooltip("Run mode: a direction needs at least this much open floor (metres) to be worth running to; otherwise the bot tries the next one. Not in FD-07.")]
     [SerializeField, Min(0.5f)]
-    public float botRunMinDistance = 6f;
+    public float botRunMinDistance = 20f;
+
+    [Tooltip("Run / Recover: this close to the target point (metres, plus a bit more at speed) the bot picks its " +
+             "next point at once, instead of arriving and carrying on into what's behind it.")]
+    [SerializeField, Min(0.5f)]
+    public float botArriveRetargetDistance = 18f;
+
+    [Tooltip("Run / Recover: speed share it eases down to on the final approach to its target (safety net).")]
+    [SerializeField, Range(0.1f, 1f)]
+    public float botArriveSpeedShare = 0.5f;
 
     // Back-off is a deliberate exception to FD-07's "brake: never used". A car nose-first against a
     // wall has no steering at a standstill, so driving forward can never get it out.

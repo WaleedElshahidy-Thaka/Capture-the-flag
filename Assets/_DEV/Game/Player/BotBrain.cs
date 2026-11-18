@@ -81,6 +81,12 @@ public sealed class BotBrain : NetworkBehaviour
 
         UpdateRecover(car, v, tickRate);
 
+        // Run and Recover head for a fixed point. Nearly there: pick the next one NOW, instead of
+        // arriving at full speed and carrying on into whatever is just past it (a wall, an obstacle).
+        if (Mode != BotMode.Chase &&
+            FlatDistance(transform.position, TargetPoint) < v.botArriveRetargetDistance + FlatSpeed() * 0.2f)
+            RetargetTicksRemaining = 0;
+
         // FD-07: re-evaluate mode and target only every bot_reaction_ticks.
         RetargetTicksRemaining--;
         if (RetargetTicksRemaining <= 0)
@@ -410,6 +416,15 @@ public sealed class BotBrain : NetworkBehaviour
             distance += FlatDistance(corners[i], corners[i + 1]);
         }
 
+        // Fixed goals (Run, Recover): ease off on the final approach, as a safety net in case the
+        // early re-pick above can't find a new point in time. Chase never slows for its target.
+        if (Mode != BotMode.Chase)
+        {
+            float toEnd = FlatDistance(position, corners[cornerCount - 1]);
+            float endSpeed = v.botArriveSpeedShare * v.TopSpeed;
+            allowed = Mathf.Min(allowed, Mathf.Sqrt(endSpeed * endSpeed + 2f * v.botCornerDecel * toEnd));
+        }
+
         return Mathf.Clamp01(allowed / v.TopSpeed);
     }
 
@@ -595,15 +610,47 @@ public sealed class BotBrain : NetworkBehaviour
             float usable = Mathf.Min(v.botRunDistance, open - v.botRunWallMargin);
             if (usable < minDistance) continue;
 
-            Vector3 target = position + direction * usable;
-            if (FlatSqr(target - rival) <= currentGapSqr) continue; // would run toward the rival
+            // The escape point must be clear of walls, obstacles and edges on EVERY side - a point 3 m
+            // in front of a wall can still sit right beside a rock. Shorten it step by step if that
+            // helps; otherwise try the next direction.
+            for (float d = usable; d >= minDistance; d -= 2f)
+            {
+                Vector3 target = position + direction * d;
+                if (FlatSqr(target - rival) <= currentGapSqr) break; // would run toward the rival
+                if (!HasClearance(target, v.botRunWallMargin, v)) continue;
 
-            lastRunDirection = direction;
-            return target;
+                lastRunDirection = direction;
+                return target;
+            }
         }
 
         lastRunDirection = Vector3.zero;
         return ArenaCenter(v);
+    }
+
+    // Is there at least 'clearance' metres of open space all around this point?
+    //   NavMesh: distance to the nearest edge (walls, baked obstacles, cliff edges) + agent radius
+    //   Physics: 8 short rays for colliders the NavMesh doesn't know about
+    bool HasClearance(Vector3 point, float clearance, HandlingValues v)
+    {
+        if (v.botUseNavMesh && TryGetAgentType(v, point))
+        {
+            var filter = new NavMeshQueryFilter { agentTypeID = navAgentTypeId, areaMask = NavMesh.AllAreas };
+            if (!NavMesh.SamplePosition(point, out NavMeshHit onMesh, v.botNavSnapDistance, filter)) return false;
+            if (NavMesh.FindClosestEdge(onMesh.position, out NavMeshHit edge, filter))
+            {
+                float radius = NavMesh.GetSettingsByID(navAgentTypeId).agentRadius;
+                if (edge.distance + radius < clearance) return false;
+            }
+        }
+
+        Vector3 origin = point + Vector3.up * 0.5f;
+        for (int k = 0; k < 8; k++)
+        {
+            Vector3 dir = Quaternion.AngleAxis(45f * k, Vector3.up) * Vector3.forward;
+            if (PhysicsWhisker(origin, dir, clearance, out _)) return false;
+        }
+        return true;
     }
 
     PlayerMatchState NearestRival(Vector3 position)
@@ -635,8 +682,17 @@ public sealed class BotBrain : NetworkBehaviour
         // With a NavMesh: measure along the drivable surface instead. It stops at walls AND at cliff
         // edges, and stays on the level the bot is on - a physics sweep at car height sails straight
         // over a plateau's edge and picks a "free" point in mid-air, which the bot then drives at.
+        // Then the physics sweep too, nearest wins: it catches what the NavMesh doesn't know about
+        // (invisible boundary walls outside the bake, NavMeshObstacles that don't carve), which Run
+        // used to pick escape points right behind.
+        float open = maxDistance;
         if (TryNavOpenDistance(position, direction, maxDistance, out float navOpen))
-            return navOpen;
+            open = navOpen;
+        return Mathf.Min(open, PhysicsOpenDistance(position, direction, open));
+    }
+
+    float PhysicsOpenDistance(Vector3 position, Vector3 direction, float maxDistance)
+    {
 
         // Start the sweep above the floor: a sphere that begins overlapping the ground would report
         // a hit at distance 0 with a sideways normal, and every direction would look blocked.
@@ -801,9 +857,15 @@ public sealed class BotBrain : NetworkBehaviour
         navWhiskersReady = true;
     }
 
+    // Both checks, nearest wins:
+    //   NavMesh ray - cliff edges and anything baked into the NavMesh
+    //   physics ray - every static collider, baked or not: invisible boundary walls outside the
+    //                 bake, objects with a NavMeshObstacle (not carving), anything added after the bake
+    // The NavMesh alone missed those, so a bot could plan straight into them.
     bool Whisker(Vector3 origin, Vector3 direction, float length, out float distance)
     {
         distance = length;
+        bool found = false;
 
         if (navWhiskersReady)
         {
@@ -811,15 +873,26 @@ public sealed class BotBrain : NetworkBehaviour
             if (NavMesh.Raycast(navWhiskerStart, navWhiskerStart + direction * length, out NavMeshHit edge, filter))
             {
                 float toWall = edge.distance + navAgentRadius;
-                if (toWall < length)
+                if (toWall < distance)
                 {
                     distance = toWall;
-                    return true;
+                    found = true;
                 }
             }
-            return false;
         }
 
+        if (PhysicsWhisker(origin, direction, distance, out float physicsWall))
+        {
+            distance = physicsWall;
+            found = true;
+        }
+        return found;
+    }
+
+    // Nearest static, wall-like collider along a ray (cars and floors/ramps ignored).
+    bool PhysicsWhisker(Vector3 origin, Vector3 direction, float length, out float distance)
+    {
+        distance = length;
         int count = Physics.RaycastNonAlloc(origin, direction, hits, length, ~0, QueryTriggerInteraction.Ignore);
 
         bool found = false;

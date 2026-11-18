@@ -95282,6 +95282,10 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 2018690141}
     m_Modifications:
+    - target: {fileID: 2661136574533606429, guid: a3df14c72f1e66642b9ce4d7308e8eeb, type: 3}
+      propertyPath: m_Center.x
+      value: 0.0004989268
+      objectReference: {fileID: 0}
     - target: {fileID: 2870593303116932829, guid: a3df14c72f1e66642b9ce4d7308e8eeb, type: 3}
       propertyPath: m_ReceiveGI
       value: 2
@@ -103446,7 +103450,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 31111921fb063c345820fd328a5e28d2, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::GameBootstrap
-  useJsonValues: 1
+  useJsonValues: 0
 --- !u!1 &957911837 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 7712145374150208638, guid: d604a19c23d9aa94582550366241da1f, type: 3}
@@ -169485,6 +169489,18 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 3393772524840270122, guid: d6224cabcd489fd4cbe1b6dd0107049c, type: 3}
       propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 3522692989510979834, guid: d6224cabcd489fd4cbe1b6dd0107049c, type: 3}
+      propertyPath: m_Area
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 3522692989510979834, guid: d6224cabcd489fd4cbe1b6dd0107049c, type: 3}
+      propertyPath: m_OverrideArea
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 3522692989510979834, guid: d6224cabcd489fd4cbe1b6dd0107049c, type: 3}
+      propertyPath: m_IgnoreFromBuild
       value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 7808371311290116502, guid: d6224cabcd489fd4cbe1b6dd0107049c, type: 3}
