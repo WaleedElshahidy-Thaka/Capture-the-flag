@@ -267,11 +267,11 @@ public class HandlingValues
 
     [Tooltip("Run mode: how far past itself, directly away from the nearest rival, the bot aims (metres). Not in FD-07.")]
     [SerializeField, Min(1f)]
-    public float botRunDistance = 15f;
+    public float botRunDistance = 25f;
 
     [Tooltip("Run mode: the target stops this far short of a wall (metres), so it's always inside the arena. Not in FD-07.")]
     [SerializeField, Min(0f)]
-    public float botRunWallMargin = 3f;
+    public float botRunWallMargin = 7f;
 
     [Tooltip("Run mode: a direction needs at least this much open floor (metres) to be worth running to; otherwise the bot tries the next one. Not in FD-07.")]
     [SerializeField, Min(0.5f)]
@@ -293,7 +293,7 @@ public class HandlingValues
 
     [Tooltip("A wall closer than this ahead (in chassis lengths) counts as nose-blocked.")]
     [SerializeField, Min(0.1f)]
-    public float botBlockedDistanceChassisLengths = 0.75f;
+    public float botBlockedDistanceChassisLengths = 1.5f;//0.75
 
     [Tooltip("Nose-blocked and nearly stopped this long (seconds) = back off. Much quicker than the stuck timer.")]
     [SerializeField, Min(0.05f)]

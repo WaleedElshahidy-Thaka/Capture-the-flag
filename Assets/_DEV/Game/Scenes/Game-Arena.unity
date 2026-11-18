@@ -144213,7 +144213,7 @@ BoxCollider:
   m_Enabled: 1
   serializedVersion: 3
   m_Size: {x: 26.297684, y: 4.3777966, z: 11.527374}
-  m_Center: {x: 14.347008, y: 1.6888983, z: 4.4206696}
+  m_Center: {x: 16.82, y: 1.6888983, z: 4.4206696}
 --- !u!1 &1306502892 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 5811530297965872503, guid: cf67eb922610b5d43abd80dcca28cd23, type: 3}
@@ -162269,6 +162269,8 @@ GameObject:
   - component: {fileID: 1484112152}
   - component: {fileID: 1484112151}
   - component: {fileID: 1484112150}
+  - component: {fileID: 1484112154}
+  - component: {fileID: 1484112153}
   m_Layer: 0
   m_Name: Garden Fence 5
   m_TagString: Untagged
@@ -162537,7 +162539,7 @@ MonoBehaviour:
   m_Size: {x: 100.2117, y: 16.153915, z: 22.680168}
   m_Center: {x: 102.285355, y: -0.23082519, z: 15.998005}
   m_Area: 1
-  m_AffectedAgents: ffffffff
+  m_AffectedAgents: f2652fae
 --- !u!114 &1484112151
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -162554,7 +162556,7 @@ MonoBehaviour:
   m_Size: {x: 114.97063, y: 13.206051, z: 40.121613}
   m_Center: {x: 69.093254, y: -1.0186825, z: -15.574753}
   m_Area: 1
-  m_AffectedAgents: ffffffff
+  m_AffectedAgents: f2652fae
 --- !u!114 &1484112152
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -162571,7 +162573,41 @@ MonoBehaviour:
   m_Size: {x: 66.15779, y: 6.2184753, z: 26.20343}
   m_Center: {x: 41.708443, y: 2.6092377, z: -11.101715}
   m_Area: 1
-  m_AffectedAgents: ffffffff
+  m_AffectedAgents: f2652fae
+--- !u!114 &1484112153
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1484112143}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 35e95dc5ff2b64380880dd7ac5922847, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Unity.AI.Navigation::Unity.AI.Navigation.NavMeshModifierVolume
+  m_SerializedVersion: 0
+  m_Size: {x: 22.957, y: 7.6949387, z: 30.94632}
+  m_Center: {x: -5.955826, y: -11.293682, z: -103.396164}
+  m_Area: 1
+  m_AffectedAgents: f2652fae
+--- !u!114 &1484112154
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1484112143}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 35e95dc5ff2b64380880dd7ac5922847, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Unity.AI.Navigation::Unity.AI.Navigation.NavMeshModifierVolume
+  m_SerializedVersion: 0
+  m_Size: {x: 26.10733, y: 9.506338, z: 26.552078}
+  m_Center: {x: 24.698898, y: -13.67418, z: -43.258507}
+  m_Area: 1
+  m_AffectedAgents: f2652fae
 --- !u!1001 &1485517570
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -177813,6 +177849,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 1637221240}
+  - component: {fileID: 1637221241}
   m_Layer: 0
   m_Name: LobbyCars
   m_TagString: Untagged
@@ -177841,6 +177878,23 @@ Transform:
   - {fileID: 1678704929}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1637221241
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1637221239}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 35e95dc5ff2b64380880dd7ac5922847, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Unity.AI.Navigation::Unity.AI.Navigation.NavMeshModifierVolume
+  m_SerializedVersion: 0
+  m_Size: {x: 4, y: 3, z: 4}
+  m_Center: {x: 0, y: 1, z: 0}
+  m_Area: 0
+  m_AffectedAgents: ffffffff
 --- !u!1 &1637508199
 GameObject:
   m_ObjectHideFlags: 0
@@ -239319,7 +239373,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: fad4fe04267616640b86639b6095bb90, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::LobbySeatMarker
-  slot: 4
+  slot: 5
 --- !u!4 &945254177119944888
 Transform:
   m_ObjectHideFlags: 0
@@ -240733,7 +240787,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: fad4fe04267616640b86639b6095bb90, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::LobbySeatMarker
-  slot: 2
+  slot: 3
 --- !u!224 &1772519094758885700
 RectTransform:
   m_ObjectHideFlags: 0
@@ -246965,7 +247019,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: fad4fe04267616640b86639b6095bb90, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::LobbySeatMarker
-  slot: 0
+  slot: 1
 --- !u!114 &5912302262904556051
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -251387,7 +251441,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: fad4fe04267616640b86639b6095bb90, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::LobbySeatMarker
-  slot: 5
+  slot: 6
 --- !u!224 &8681926442451339370
 RectTransform:
   m_ObjectHideFlags: 0
@@ -251934,7 +251988,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: fad4fe04267616640b86639b6095bb90, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::LobbySeatMarker
-  slot: 3
+  slot: 4
 --- !u!1 &8872040869296322224
 GameObject:
   m_ObjectHideFlags: 0
@@ -252604,7 +252658,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: fad4fe04267616640b86639b6095bb90, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::LobbySeatMarker
-  slot: 1
+  slot: 2
 --- !u!222 &9192154682457385096
 CanvasRenderer:
   m_ObjectHideFlags: 0
