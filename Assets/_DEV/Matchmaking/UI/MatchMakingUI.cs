@@ -24,6 +24,8 @@ public class MatchMakingUI : MonoBehaviour
     [Header("Buttons")]
     [SerializeField] Button findMatchButton;
     [SerializeField] Button backButton;
+    [Tooltip("GameRulesBTN: opens the shared HOW TO PLAY pop-up.")]
+    [SerializeField] Button gameRulesButton;
     [Tooltip("What the back arrow does. Empty = it quits the game (stops Play mode in the editor).")]
     [SerializeField] UnityEvent onBack;
 
@@ -49,6 +51,7 @@ public class MatchMakingUI : MonoBehaviour
 
         if (findMatchButton != null) findMatchButton.onClick.AddListener(OnFindMatch);
         if (backButton != null) backButton.onClick.AddListener(OnBack);
+        if (gameRulesButton != null) gameRulesButton.onClick.AddListener(OpenGameRules);
 
         FillInfo();
     }
@@ -89,6 +92,11 @@ public class MatchMakingUI : MonoBehaviour
         if (flowController.Phase != MatchmakingPhase.Idle) return;
         findMatchButton.interactable = false; // one press is enough
         flowController.FindMatch();
+    }
+
+    void OpenGameRules()
+    {
+        if (HowToPlayPopup.Instance != null) HowToPlayPopup.Instance.Open();
     }
 
     void OnBack()

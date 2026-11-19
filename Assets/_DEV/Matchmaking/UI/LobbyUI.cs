@@ -56,6 +56,8 @@ public class LobbyUI : MonoBehaviour
     [SerializeField] Button readyButton;
     [SerializeField] TMP_Text readyButtonText;
     [SerializeField] Button leaveLobbyButton;
+    [Tooltip("GameRulesBTN: opens the shared HOW TO PLAY pop-up.")]
+    [SerializeField] Button gameRulesButton;
 
     [Header("Text")]
     [Tooltip("Alone, after 30 s.")]
@@ -104,6 +106,7 @@ public class LobbyUI : MonoBehaviour
         CollectRows();
         readyButton.onClick.AddListener(OnReadyButton);
         leaveLobbyButton.onClick.AddListener(OnLeaveButton);
+        if (gameRulesButton != null) gameRulesButton.onClick.AddListener(OpenGameRules);
     }
 
     void OnEnable()
@@ -337,6 +340,11 @@ public class LobbyUI : MonoBehaviour
         {
             if (!session.IsReady || allowUnready) flowController.ToggleReady();
         }
+    }
+
+    void OpenGameRules()
+    {
+        if (HowToPlayPopup.Instance != null) HowToPlayPopup.Instance.Open();
     }
 
     void OnLeaveButton()

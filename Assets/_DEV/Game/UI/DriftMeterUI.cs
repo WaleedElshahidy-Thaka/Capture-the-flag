@@ -24,6 +24,13 @@ public class DriftMeterUI : MonoBehaviour
     [SerializeField] Graphic marker;
     [SerializeField] TMP_Text label;
 
+    [Header("Boost multiplier")]
+    [Tooltip("The 1X / 2X / 3X text. Shown only while a boost window is open: 1X in stage 1's window, " +
+             "2X in stage 2's, 3X in stage 3's. Give it a UITransition (Pop) to pop in and out.")]
+    [SerializeField] TMP_Text boostMultiplierText;
+    [Tooltip("{0} = the stage whose window is open.")]
+    [SerializeField] string boostMultiplierFormat = "{0}X";
+
     [Header("Flag")]
     [Tooltip("The flag on the bar (the boost line). The fill reaches it exactly when the stage is reached, " +
              "slowing down as it gets close.")]
@@ -94,6 +101,13 @@ public class DriftMeterUI : MonoBehaviour
 
     void Awake()
     {
+        // Hidden until the first boost window opens.
+        if (boostMultiplierText != null)
+        {
+            if (boostMultiplierText.TryGetComponent(out UITransition t)) t.SetVisibleImmediate(false);
+            else boostMultiplierText.gameObject.SetActive(false);
+        }
+
         if (slider == null) return;
         slider.minValue = 0f;
         slider.maxValue = 1f;
@@ -175,6 +189,18 @@ public class DriftMeterUI : MonoBehaviour
         if (flag != null && flag.TryGetComponent(out Graphic flagGraphic))
             flagGraphic.color = Color.Lerp(markerColor, windowFlashColor, flash);
 
+        // 1X / 2X / 3X while the window is open, gone when it closes.
+        if (boostMultiplierText != null)
+        {
+            bool showMultiplier = move.DriftWindowStage > 0;
+            if (showMultiplier)
+            {
+                string m = (boostMultiplierFormat ?? "{0}").Replace("{0}", move.DriftWindowStage.ToString());
+                if (boostMultiplierText.text != m) boostMultiplierText.text = m;
+            }
+            SetShown(boostMultiplierText.gameObject, showMultiplier);
+        }
+
         if (label != null)
         {
             string text = window ? (windowText ?? "{0}").Replace("{0}", move.DriftWindowStage.ToString()) : idleText;
@@ -196,4 +222,16 @@ public class DriftMeterUI : MonoBehaviour
 
     Color ChargeColor(int stage) =>
         chargeColors != null && stage < chargeColors.Length ? chargeColors[stage] : Color.white;
+
+    // Pops in/out with a UITransition if it has one, otherwise just switches on/off.
+    static void SetShown(GameObject go, bool shown)
+    {
+        if (go.TryGetComponent(out UITransition transition))
+        {
+            if (shown) transition.Show();
+            else transition.Hide();
+            return;
+        }
+        if (go.activeSelf != shown) go.SetActive(shown);
+    }
 }

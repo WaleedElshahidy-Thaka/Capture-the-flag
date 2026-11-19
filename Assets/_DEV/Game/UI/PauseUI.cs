@@ -72,13 +72,15 @@ public class PauseUI : MonoBehaviour
         GameAudioSettings.Init(audioMixer);
 
         Bind(resumeButton, Close);
-        Bind(howToPlayButton, () => Show(Page.HowToPlay));
+        Bind(howToPlayButton, OpenHowToPlay);
         Bind(optionsButton, () => Show(Page.Options));
         Bind(exitToMainMenuButton, ExitToMainMenu);
         Bind(optionsBackButton, Back);
         Bind(backArrowButton, Back);
 
-        if (howToPlayButton != null && howToPlayPage == null) howToPlayButton.gameObject.SetActive(false);
+        // No page of its own: use the shared HOW TO PLAY pop-up if there is one, else hide the button.
+        if (howToPlayButton != null && howToPlayPage == null && FindFirstObjectByType<HowToPlayPopup>(FindObjectsInactive.Include) == null)
+            howToPlayButton.gameObject.SetActive(false);
 
         Show(Page.Closed, animate: false);
     }
@@ -97,6 +99,9 @@ public class PauseUI : MonoBehaviour
             return;
         }
 
+        // The HOW TO PLAY pop-up is on top and handles Escape itself - don't also step back here.
+        if (HowToPlayPopup.Instance != null && HowToPlayPopup.Instance.IsOpen) return;
+
         if (!BackPressed()) return;
 
         if (page == Page.Closed) { if (MatchRunning()) Show(Page.Main); }
@@ -104,6 +109,13 @@ public class PauseUI : MonoBehaviour
     }
 
     // ─── Actions ─────────────────────────────────────────────────────────
+
+    // Its own page if it has one, otherwise the shared pop-up (opened on top of the pause menu).
+    void OpenHowToPlay()
+    {
+        if (howToPlayPage != null) Show(Page.HowToPlay);
+        else if (HowToPlayPopup.Instance != null) HowToPlayPopup.Instance.Open();
+    }
 
     void Back()
     {
