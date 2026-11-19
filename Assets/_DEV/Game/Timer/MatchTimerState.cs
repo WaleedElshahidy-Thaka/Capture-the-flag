@@ -49,6 +49,10 @@ public class MatchTimerState : NetworkBehaviour
         crown = GetComponent<CrownMatchState>();
     }
 
+    // The match length set on the prefab, for screens that show it before a match exists
+    // (MatchMakingUI's "ROUND 90s").
+    public float ConfiguredDurationSeconds => durationSeconds;
+
     public override void Spawned()
     {
         Instance = this;

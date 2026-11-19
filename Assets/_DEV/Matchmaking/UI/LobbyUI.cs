@@ -58,8 +58,19 @@ public class LobbyUI : MonoBehaviour
     [SerializeField] Button leaveLobbyButton;
 
     [Header("Text")]
+    [Tooltip("Alone, after 30 s.")]
+    [SerializeField] string startWithBotsLabel = "START WITH BOTS";
+    [Tooltip("With other players, after 30 s.")]
     [SerializeField] string readyLabel = "READY";
-    [SerializeField] string cancelLabel = "CANCEL";
+    [Tooltip("After voting READY, until everyone has.")]
+    [SerializeField] string waitingVoteLabel = "WAITING FOR THE OTHER PLAYERS TO VOTE";
+    [Tooltip("Let a player take their READY vote back by pressing again.")]
+    [SerializeField] bool allowUnready = false;
+
+    [Header("Timer text")]
+    [SerializeField] string timerTitle = "SEARCHING";
+    [Tooltip("{0} = seconds searched (counts up to the 120 s limit).")]
+    [SerializeField] string timerFormat = "{0}s";
 
     [Header("Transitions")]
     [Tooltip("How long the whole lobby takes to fade out when the match starts (and back in).")]
@@ -113,8 +124,10 @@ public class LobbyUI : MonoBehaviour
         // Idle and searching are the lobby. Everything after (the match, a host migration) belongs
         // to the in-game UI, so the lobby fades out - the component stays enabled so it
         // can switch back on when the player returns to the lobby.
-        bool inLobby = phase.IsPreMatch();
-        bool searching = phase.IsCancellable(); // Searching, Found, WaitingSolo, WaitingReady
+        // The lobby screen is the search itself: Searching, Found, WaitingSolo, WaitingReady.
+        // Idle (before Find Match) belongs to MatchMakingUI.
+        bool searching = phase.IsCancellable();
+        bool inLobby = searching;
 
         // The first time (scene start) everything is placed instantly - no animations on load.
         bool animate = appliedOnce;
@@ -184,11 +197,9 @@ public class LobbyUI : MonoBehaviour
     void Refresh()
     {
         var phase = flowController.Phase;
-        if (!phase.IsPreMatch()) return;
+        if (!phase.IsCancellable()) return;
 
         RefreshReadyButton(phase);
-
-        if (!phase.IsCancellable()) return;
 
         GatherReadyPlayers();
         RefreshPlayerList();
@@ -239,8 +250,9 @@ public class LobbyUI : MonoBehaviour
             {
                 var player = readyPlayers[i];
                 // No level system yet: -1 hides the level text.
+                // Tick = voted READY, spinner = not yet.
                 slots[i].ShowPlayer(player.DisplayName.ToString(), -1, SeatColor(player.Slot),
-                                    ready: true, isLocal: player == local);
+                                    ready: player.IsReady, isLocal: player == local);
             }
             else
             {
@@ -253,7 +265,7 @@ public class LobbyUI : MonoBehaviour
     {
         string title =
             phase == MatchmakingPhase.Found ? "PLAYER FOUND!" :
-            MatchStartRule.IsFull(readyPlayers.Count) ? "ALL PLAYERS READY!" :
+            EveryoneReady() ? "ALL PLAYERS READY!" :
             "WAITING FOR PLAYERS";
         SetText(waitingTitle, title);
 
@@ -272,36 +284,59 @@ public class LobbyUI : MonoBehaviour
             return;
         }
 
-        SetText(countdownTitle, "GAME WILL START IN");
-        SetText(countdownText, $"{Mathf.CeilToInt(SecondsUntilStart(session))} SEC");
+        // Counts UP from 0 s; at the limit (120 s) the match starts in any case.
+        int seconds = Mathf.Min(Mathf.FloorToInt(ElapsedSeconds(session)), Mathf.RoundToInt(MatchmakingConfig.SearchDurationSeconds));
+        SetText(countdownTitle, timerTitle);
+        SetText(countdownText, (timerFormat ?? "{0}").Replace("{0}", seconds.ToString()));
     }
 
-    // Same rule and same inputs as the host, so the number on screen is the one that starts the match.
-    float SecondsUntilStart(IActiveQuickMatchSession session)
-    {
-        if (session == null)
-            return MatchStartRule.SecondsUntilStart(flowController.SearchElapsedSeconds, 1);
+    // The same timer the host uses: your own while alone, the lobby's shared timer once together.
+    float ElapsedSeconds(IActiveQuickMatchSession session) =>
+        session != null ? session.ElapsedSeconds : flowController.SearchElapsedSeconds;
 
-        // Alone: your own timer. Together: the lobby's shared timer and its player count.
-        int players = session.InLobby ? Mathf.Max(1, session.LobbyCount) : 1;
-        return MatchStartRule.SecondsUntilStart(session.ElapsedSeconds, players);
+    bool EveryoneReady()
+    {
+        if (readyPlayers.Count < 2) return false;
+        foreach (var p in readyPlayers) if (!p.IsReady) return false;
+        return true;
     }
 
     // ─── Buttons ─────────────────────────────────────────────────────────
 
+    // No button until the choice unlocks at 30 s; then
+    //   alone        -> START WITH BOTS
+    //   with others  -> READY, and once you've voted, WAITING FOR THE OTHER PLAYERS TO VOTE
     void RefreshReadyButton(MatchmakingPhase phase)
     {
-        SetText(readyButtonText, phase == MatchmakingPhase.Idle ? readyLabel : cancelLabel);
-        if (!readyButton.interactable) readyButton.interactable = true;
+        bool solo = phase == MatchmakingPhase.WaitingSolo;
+        bool vote = phase == MatchmakingPhase.WaitingReady;
+        SetActive(readyButton.gameObject, solo || vote, animate: true);
+        if (!solo && !vote) return;
+
+        var session = flowController.Session;
+        bool voted = vote && session != null && session.IsReady;
+
+        string label = solo ? startWithBotsLabel : voted ? waitingVoteLabel : readyLabel;
+        SetText(readyButtonText, label);
+
+        bool interactable = !voted || allowUnready;
+        if (readyButton.interactable != interactable) readyButton.interactable = interactable;
     }
 
-    // READY starts the countdown; pressed again (CANCEL) it stops it.
     void OnReadyButton()
     {
         Punch(readyButton.gameObject);
         var phase = flowController.Phase;
-        if (phase == MatchmakingPhase.Idle) flowController.FindMatch();
-        else if (phase.IsCancellable()) flowController.Cancel();
+        var session = flowController.Session;
+
+        if (phase == MatchmakingPhase.WaitingSolo)
+        {
+            flowController.RequestStartWithBots();
+        }
+        else if (phase == MatchmakingPhase.WaitingReady && session != null)
+        {
+            if (!session.IsReady || allowUnready) flowController.ToggleReady();
+        }
     }
 
     void OnLeaveButton()

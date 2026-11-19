@@ -72,7 +72,7 @@ public class QuickMatchLocalService : IQuickMatchService
         {
             get
             {
-                if (!matchStarting && IsSearching && MatchStartRule.ShouldStart(ElapsedSeconds, 1))
+                if (!matchStarting && IsSearching && MatchStartRule.ShouldStartAlone(ElapsedSeconds))
                 {
                     botCount = MaxPlayers - PlayerCount;
                     matchStarting = true;

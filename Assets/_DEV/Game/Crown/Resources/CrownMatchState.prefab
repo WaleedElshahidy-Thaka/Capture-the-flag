@@ -81,7 +81,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 061637ab6161eb24d92d3141c0288f50, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::MatchTimerState
-  durationSeconds: 90
+  durationSeconds: 150
   pointsPerSecond: 0.6
+  countdownSeconds: 3
   _Finished:
     RawValue: 0

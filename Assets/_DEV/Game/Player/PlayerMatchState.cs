@@ -133,8 +133,10 @@ public class PlayerMatchState : NetworkBehaviour, IAfterHostMigration
     [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
     public void RPC_RequestStartWithBots()
     {
+        // Only alone, and only once the choice has unlocked (30 s) - the host checks, not the button.
         int searchingCount = PlayerRoster.CountSearching();
-        if (searchingCount != 1) return;
+        if (searchingCount != 1 || !IsSearching) return;
+        if (!MatchStartRule.ChoiceUnlocked(SearchElapsedSeconds)) return;
         MatchmakingSessionState.Local?.TriggerStart(MatchmakingConfig.MaxPlayers - searchingCount);
     }
 

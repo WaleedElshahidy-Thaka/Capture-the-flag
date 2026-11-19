@@ -1447,6 +1447,11 @@ MonoBehaviour:
   _CrownTicks: 0
   _Score: 0
   _Slot: 0
+  _LongestHoldTicks: 0
+  _CurrentHoldTicks: 0
+  _Steals: 0
+  _Slams: 0
+  _DistanceDriven: 0
 --- !u!114 &2445612791816955325
 MonoBehaviour:
   m_ObjectHideFlags: 0

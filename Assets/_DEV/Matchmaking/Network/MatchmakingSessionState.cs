@@ -88,20 +88,20 @@ public class MatchmakingSessionState : NetworkBehaviour, IAfterHostMigration
 
         if (searching == 1)
         {
-            ResetLoneSearcher();
+            ResetLoneSearcher(); // a ready vote means nothing alone - clear it
 
-            // Alone: your own timer, no players to take time off.
-            if (MatchStartRule.ShouldStart(LoneSearcherElapsedSeconds(), 1))
+            // Alone: only the 120 s timer here. START WITH BOTS comes in as an RPC.
+            if (MatchStartRule.ShouldStartAlone(LoneSearcherElapsedSeconds()))
                 TriggerStart(MatchmakingConfig.MaxPlayers - 1);
             return;
         }
 
         MarkSearchersFound();
 
-        // Together: the lobby's shared timer, 15 s off for each player in the lobby after the first.
-        // Players still in their 3 s "joining" countdown count once they're in (as on screen).
-        int inLobby = Mathf.Max(1, PlayerRoster.CountInLobby());
-        if (MatchStartRule.ShouldStart(PlayerRoster.SharedElapsedSeconds(), inLobby))
+        // Together: the lobby's shared timer. After 30 s, everyone searching having voted READY
+        // starts it early (someone still in their 3 s "joining" countdown hasn't voted yet, so it
+        // waits for them); at 120 s it starts regardless.
+        if (MatchStartRule.ShouldStartTogether(PlayerRoster.SharedElapsedSeconds(), PlayerRoster.AllSearchingReady()))
             TriggerStart(MatchmakingConfig.MaxPlayers - searching);
     }
 
