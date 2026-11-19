@@ -37508,7 +37508,6 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 326358929}
-  - component: {fileID: 326358928}
   - component: {fileID: 326358927}
   m_Layer: 0
   m_Name: LobbyPreviewCar (2)
@@ -37535,6 +37534,7 @@ MonoBehaviour:
   nameTag: {fileID: 1690860278}
   nameLabel: {fileID: 282566805}
   botName: BOT
+  handOverToRealCars: 0
   tintRenderers: []
   tintGraphics:
   - {fileID: 169613211}
@@ -37543,22 +37543,6 @@ MonoBehaviour:
   - {fileID: 0}
   tintEmission: 1
   emissionIntensity: 2
---- !u!114 &326358928
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 326358926}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 46db6620d6ff0704387ca4b76d1c3cd4, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::LobbyPreviewCar
-  flow: {fileID: 2752765522385015605}
-  visual: {fileID: 1677977205}
-  nameTag: {fileID: 1690860278}
-  nameLabel: {fileID: 282566805}
 --- !u!4 &326358929
 Transform:
   m_ObjectHideFlags: 0
@@ -63489,7 +63473,6 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 545257405}
-  - component: {fileID: 545257404}
   - component: {fileID: 545257403}
   m_Layer: 0
   m_Name: LobbyPreviewCar (1)
@@ -63516,6 +63499,7 @@ MonoBehaviour:
   nameTag: {fileID: 656559580}
   nameLabel: {fileID: 530305872}
   botName: BOT
+  handOverToRealCars: 0
   tintRenderers: []
   tintGraphics:
   - {fileID: 1104334018}
@@ -63524,22 +63508,6 @@ MonoBehaviour:
   - {fileID: 0}
   tintEmission: 1
   emissionIntensity: 2
---- !u!114 &545257404
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 545257402}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 46db6620d6ff0704387ca4b76d1c3cd4, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::LobbyPreviewCar
-  flow: {fileID: 2752765522385015605}
-  visual: {fileID: 2020720657}
-  nameTag: {fileID: 656559580}
-  nameLabel: {fileID: 530305872}
 --- !u!4 &545257405
 Transform:
   m_ObjectHideFlags: 0
@@ -89007,7 +88975,6 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 792065992}
-  - component: {fileID: 792065991}
   - component: {fileID: 792065990}
   m_Layer: 0
   m_Name: LobbyPreviewCar (3)
@@ -89034,6 +89001,7 @@ MonoBehaviour:
   nameTag: {fileID: 325063761}
   nameLabel: {fileID: 1898636871}
   botName: BOT
+  handOverToRealCars: 0
   tintRenderers: []
   tintGraphics:
   - {fileID: 1932795670}
@@ -89042,22 +89010,6 @@ MonoBehaviour:
   - {fileID: 0}
   tintEmission: 1
   emissionIntensity: 2
---- !u!114 &792065991
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 792065989}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 46db6620d6ff0704387ca4b76d1c3cd4, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::LobbyPreviewCar
-  flow: {fileID: 2752765522385015605}
-  visual: {fileID: 2023429870}
-  nameTag: {fileID: 325063761}
-  nameLabel: {fileID: 1898636871}
 --- !u!4 &792065992
 Transform:
   m_ObjectHideFlags: 0
@@ -184515,7 +184467,6 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 1678704929}
-  - component: {fileID: 1678704928}
   - component: {fileID: 1678704927}
   m_Layer: 0
   m_Name: LobbyPreviewCar (5)
@@ -184542,6 +184493,7 @@ MonoBehaviour:
   nameTag: {fileID: 310378269}
   nameLabel: {fileID: 1631490667}
   botName: BOT
+  handOverToRealCars: 0
   tintRenderers: []
   tintGraphics:
   - {fileID: 273715052}
@@ -184550,22 +184502,6 @@ MonoBehaviour:
   - {fileID: 0}
   tintEmission: 1
   emissionIntensity: 2
---- !u!114 &1678704928
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1678704926}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 46db6620d6ff0704387ca4b76d1c3cd4, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::LobbyPreviewCar
-  flow: {fileID: 2752765522385015605}
-  visual: {fileID: 919862862}
-  nameTag: {fileID: 310378269}
-  nameLabel: {fileID: 1631490667}
 --- !u!4 &1678704929
 Transform:
   m_ObjectHideFlags: 0
@@ -187558,7 +187494,6 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 1695312112}
-  - component: {fileID: 1695312111}
   - component: {fileID: 1695312110}
   m_Layer: 0
   m_Name: LobbyPreviewCar (4)
@@ -187585,6 +187520,7 @@ MonoBehaviour:
   nameTag: {fileID: 959282637}
   nameLabel: {fileID: 1405651364}
   botName: BOT
+  handOverToRealCars: 0
   tintRenderers: []
   tintGraphics:
   - {fileID: 1552030942}
@@ -187592,22 +187528,6 @@ MonoBehaviour:
   tintSprites: []
   tintEmission: 1
   emissionIntensity: 2
---- !u!114 &1695312111
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1695312109}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 46db6620d6ff0704387ca4b76d1c3cd4, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::LobbyPreviewCar
-  flow: {fileID: 2752765522385015605}
-  visual: {fileID: 1943099571}
-  nameTag: {fileID: 959282637}
-  nameLabel: {fileID: 1405651364}
 --- !u!4 &1695312112
 Transform:
   m_ObjectHideFlags: 0
@@ -246706,22 +246626,6 @@ MonoBehaviour:
   m_FillOrigin: 0
   m_UseSpriteMesh: 0
   m_PixelsPerUnitMultiplier: 1
---- !u!114 &3718339848362001005
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 5521579660782715613}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 46db6620d6ff0704387ca4b76d1c3cd4, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::LobbyPreviewCar
-  flow: {fileID: 2752765522385015605}
-  visual: {fileID: 3424383314951573827}
-  nameTag: {fileID: 7902052243958731870}
-  nameLabel: {fileID: 4068235202049907408}
 --- !u!114 &3721581633599490468
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -249537,7 +249441,6 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 7565493724707676767}
-  - component: {fileID: 3718339848362001005}
   - component: {fileID: 7565493724707676768}
   m_Layer: 0
   m_Name: LobbyPreviewCar
@@ -253019,6 +252922,7 @@ MonoBehaviour:
   nameTag: {fileID: 7902052243958731870}
   nameLabel: {fileID: 4068235202049907408}
   botName: BOT
+  handOverToRealCars: 0
   tintRenderers: []
   tintGraphics:
   - {fileID: 83949110}

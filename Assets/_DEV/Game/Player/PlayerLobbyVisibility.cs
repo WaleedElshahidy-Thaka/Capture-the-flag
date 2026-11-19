@@ -1,14 +1,20 @@
 using Fusion;
 using UnityEngine;
 
-// Shows a car only once both you and it are in the lobby, or once the match is starting.
-// Until then LobbyPreviewCar stands in for your own. Only cosmetic children are toggled;
-// the networked object keeps simulating underneath.
+// Hides a real car until the match starts. Real cars spawn straight onto their match start spot
+// (StartAnchors) and wait there, invisible, while the lobby shows the six stand-in robots
+// (LobbySeatPreview). When the match starts they all appear at once, bots included.
+// Only cosmetic children are toggled; the networked object keeps simulating underneath.
+//
+// Show In Lobby (old behaviour): also show a car once both you and it are in the lobby.
 [RequireComponent(typeof(NetworkObject))]
 [RequireComponent(typeof(PlayerMatchState))]
 public class PlayerLobbyVisibility : MonoBehaviour
 {
     [SerializeField] GameObject[] hiddenUntilMatched;
+    [Tooltip("Old behaviour: show real cars in the lobby once both players are in it. Off = real cars only " +
+             "appear when the match starts (the lobby shows the stand-in robots instead).")]
+    [SerializeField] bool showInLobby = false;
 
     PlayerMatchState state;
     bool visible = true;
@@ -35,6 +41,7 @@ public class PlayerLobbyVisibility : MonoBehaviour
         var session = MatchmakingSessionState.Local;
         if (session != null && session.MatchStarting) return true;
 
+        if (!showInLobby) return false;
         var own = PlayerRoster.Local;
         return own != null && own.InLobby && state.InLobby;
     }

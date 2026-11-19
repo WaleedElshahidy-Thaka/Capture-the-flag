@@ -26,6 +26,9 @@ public class LobbySeatPreview : MonoBehaviour
     [SerializeField] GameObject nameTag;
     [SerializeField] TMP_Text nameLabel;
     [SerializeField] string botName = "BOT";
+    [Tooltip("Hide this stand-in when that player's real car appears in the lobby. Off (new flow): real cars " +
+             "wait at their match start spots, so the stand-ins stay up for the whole lobby.")]
+    [SerializeField] bool handOverToRealCars = false;
 
     [Header("Seat colour (the ring, frames, pointer)")]
     [SerializeField] Renderer[] tintRenderers;
@@ -100,6 +103,8 @@ public class LobbySeatPreview : MonoBehaviour
         if (flow != null && !flow.Phase.IsPreMatch()) return false;
         var session = MatchmakingSessionState.Local;
         if (session != null && session.MatchStarting) return false;
+
+        if (!handOverToRealCars) return true;
 
         // The real car is visible here (same rule as PlayerLobbyVisibility): step aside for it.
         var own = PlayerRoster.Local;
