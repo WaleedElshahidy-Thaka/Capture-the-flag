@@ -99,9 +99,10 @@ public class PlayerLobbySpawner
             return;
         }
 
-        // Player N prefers seat N; if someone already sits there (PlayerIds keep counting up as people
-        // come and go), the next free seat. Two cars must never share a seat - bots fill the rest.
-        int slot = LobbySeats.FirstFree(player.PlayerId % LobbyLayout.SlotCount);
+        // Lowest free seat, in join order: the first player (the host) is seat 0 - the front seat - the
+        // next player seat 1, and so on. (PlayerId % 6 put the host in seat 1, because PlayerIds don't
+        // start at 0.) Two cars must never share a seat - bots fill the rest.
+        int slot = LobbySeats.FirstFree(0);
         if (slot < 0)
         {
             Debug.LogWarning($"[PlayerLobbySpawner] No free seat for {player} - lobby is full.");

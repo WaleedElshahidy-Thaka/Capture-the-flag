@@ -43,6 +43,8 @@ public class PauseUI : MonoBehaviour
     [SerializeField] string optionsTitle = "OPTIONS";
     [SerializeField] string howToPlayTitle = "HOW TO PLAY";
     [SerializeField] string subtitle = "THE MATCH IS STILL RUNNING FOR EVERYONE";
+    [Tooltip("Shown instead when you're the only player (everyone else is a bot): the match really pauses.")]
+    [SerializeField] string pausedSubtitle = "THE MATCH IS PAUSED";
 
     [Header("Buttons")]
     [SerializeField] Button resumeButton;
@@ -87,6 +89,7 @@ public class PauseUI : MonoBehaviour
 
     void OnDisable()
     {
+        SetSimulationPaused(false);
         IsOpen = false; // never leave the car without input if this object goes away
     }
 
@@ -154,6 +157,7 @@ public class PauseUI : MonoBehaviour
         bool wasOpen = page != Page.Closed;
         page = next;
         IsOpen = open;
+        SetSimulationPaused(open);
 
         group.blocksRaycasts = open;
         group.interactable = open;
@@ -167,7 +171,7 @@ public class PauseUI : MonoBehaviour
 
         if (titleText != null)
             titleText.text = next == Page.Options ? optionsTitle : next == Page.HowToPlay ? howToPlayTitle : pausedTitle;
-        if (subtitleText != null) subtitleText.text = subtitle;
+        if (subtitleText != null) subtitleText.text = SoloWithBots() ? pausedSubtitle : subtitle;
 
         // Gamepad / keyboard navigation starts on the page's first button.
         Button first = next == Page.Main ? resumeButton : next == Page.Options ? optionsBackButton : backArrowButton;
@@ -196,6 +200,35 @@ public class PauseUI : MonoBehaviour
     }
 
     // ─── Helpers ─────────────────────────────────────────────────────────
+
+    // ─── Solo pause ──────────────────────────────────────────────────────
+    //
+    // Online, the match keeps running for everyone. But if you're the only person in it (everyone else is
+    // a bot), nobody else is waiting - so the pause menu really pauses: the host (you) sets the session's
+    // Paused flag and the timer, cars, bots, Crown, oil and Repulse all hold still until you resume.
+    static bool SoloWithBots()
+    {
+        var session = MatchmakingSessionState.Local;
+        if (session == null || session.Object == null || !session.Object.HasStateAuthority) return false;
+
+        var local = PlayerRoster.Local;
+        var cars = PlayerRoster.Active;
+        for (int i = 0; i < cars.Count; i++)
+        {
+            var car = cars[i];
+            if (car == null || !car.HasState || car == local) continue;
+            if (!car.IsBot) return false; // another person is playing
+        }
+        return local != null;
+    }
+
+    static void SetSimulationPaused(bool paused)
+    {
+        var session = MatchmakingSessionState.Local;
+        if (session == null || session.Object == null || !session.Object.HasStateAuthority) return;
+        bool want = paused && SoloWithBots();
+        if (session.Paused != want) session.Paused = want;
+    }
 
     // A match is on: countdown or playing, and not finished.
     static bool MatchRunning()

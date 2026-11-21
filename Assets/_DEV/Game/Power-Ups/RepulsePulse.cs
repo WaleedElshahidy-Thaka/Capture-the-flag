@@ -91,7 +91,7 @@ public sealed class RepulsePulse : NetworkBehaviour
             return;
 
         var session = MatchmakingSessionState.Local;
-        if (session != null && session.Frozen)
+        if (session != null && session.Halted)
             return;
 
         // Nothing lands after the buzzer (FD-01). The item is still spent.

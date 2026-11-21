@@ -29,7 +29,7 @@ public class SuperlativeCardView : MonoBehaviour
         if (entry == null) return;
 
         if (nameTagFrame != null) nameTagFrame.color = seatColor;
-        if (levelText != null) levelText.gameObject.SetActive(false);
+        if (levelText == null) levelText.gameObject.SetActive(false);
         if (nameText != null) nameText.text = (entry.name ?? "PLAYER").ToUpperInvariant();
     }
 }

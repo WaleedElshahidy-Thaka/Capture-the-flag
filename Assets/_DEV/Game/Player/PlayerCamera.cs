@@ -102,7 +102,9 @@ public class PlayerCamera : MonoBehaviour
         // start switches at once.
         bool lobbySideCut = (mode == Mode.Solo && desired == Mode.Lobby) || (mode == Mode.Lobby && desired == Mode.Solo);
         bool backToLobby = (mode == Mode.Hold || mode == Mode.Follow) && (desired == Mode.Solo || desired == Mode.Lobby);
-        bool intoMatch = fadeIntoMatch && desired == Mode.Follow && (mode == Mode.Solo || mode == Mode.Lobby);
+        // MatchTransitionFade, when there is one, runs the whole start fade itself.
+        bool intoMatch = fadeIntoMatch && !MatchTransitionFade.InUse &&
+                         desired == Mode.Follow && (mode == Mode.Solo || mode == Mode.Lobby);
         lobbySideCut |= backToLobby || intoMatch;
         if (!lobbySideCut || fade == null)
         {
@@ -117,7 +119,9 @@ public class PlayerCamera : MonoBehaviour
 
     Mode DesiredMode()
     {
-        if (InMatch) return Mode.Follow;
+        // During the start fade the camera stays on the lobby until the screen is black.
+        if (InMatch && !MatchTransitionFade.HoldingCamera) return Mode.Follow;
+        if (InMatch) return mode == Mode.Follow ? Mode.Follow : Mode.Lobby;
 
         // Our car vanished: hold the last view only while still in the match (a host migration is
         // about to give it back). Back in the lobby (Play Again), go to the lobby views - otherwise

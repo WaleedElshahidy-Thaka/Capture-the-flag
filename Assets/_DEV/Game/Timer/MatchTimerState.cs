@@ -18,18 +18,24 @@ public class MatchTimerState : NetworkBehaviour
     [SerializeField, Min(1f)] float durationSeconds = 150f;
     [SerializeField, Min(0f)] float pointsPerSecond = 0.6f; // flat rate, no multipliers. 0.5 = 1 point per 2 s
     [SerializeField, Min(0f)] float countdownSeconds = 3f; // "3, 2, 1" before the clock starts
+    [Tooltip("Seconds before the 3-2-1 begins, for the start fade (black, then into the arena). " +
+             "Keep it about MatchTransitionFade's fade in + hold + fade out.")]
+    [SerializeField, Min(0f)] float introSeconds = 1.5f;
     // Declaration order is the network layout - keep it stable.
     [Networked] int RemainingTicks { get; set; }
     [Networked] NetworkBool Started { get; set; }
     [Networked] public NetworkBool Finished { get; set; }
     [Networked] int CountdownTicks { get; set; } // ticks left before the match clock starts
+    [Networked] int IntroTicks { get; set; }     // ticks left before the countdown starts (start fade). Appended.
     public static MatchTimerState Instance { get; private set; }
 
     // Raised once per peer when the match ends. The result is already saved locally.
     public static event Action<MatchResult> MatchFinished;
 
     public bool IsPlaying => Started && !Finished;
-    public bool InCountdown => Started && CountdownTicks > 0;
+    // The start fade: the match exists, the 3-2-1 hasn't begun yet.
+    public bool InIntro => Started && IntroTicks > 0;
+    public bool InCountdown => Started && IntroTicks <= 0 && CountdownTicks > 0;
     public float CountdownSecondsRemaining =>
        Runner == null ? 0f : Mathf.Max(0f, CountdownTicks * Runner.DeltaTime);
 
@@ -65,6 +71,7 @@ public class MatchTimerState : NetworkBehaviour
         {
             RemainingTicks = Mathf.RoundToInt(durationSeconds * Runner.TickRate);
             CountdownTicks = Mathf.RoundToInt(countdownSeconds * Runner.TickRate);
+            IntroTicks = Mathf.RoundToInt(introSeconds * Runner.TickRate);
             Started = true;
         }
     }
@@ -80,7 +87,14 @@ public class MatchTimerState : NetworkBehaviour
         if (!Object.HasStateAuthority || !IsPlaying) return;
 
         var session = MatchmakingSessionState.Local;
-        if (session != null && session.Frozen) return;
+        if (session != null && session.Halted) return;
+
+        // Start fade first, then the countdown. Cars are held still through both.
+        if (IntroTicks > 0)
+        {
+            IntroTicks--;
+            return;
+        }
 
         // Pre-match countdown: cars are held still, the 90 s clock and scoring haven't started.
         if (CountdownTicks > 0)

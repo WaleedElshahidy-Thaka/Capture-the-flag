@@ -52,7 +52,7 @@ public class DataCrown : NetworkBehaviour
             return;
 
         var session = MatchmakingSessionState.Local;
-        if (session != null && session.Frozen)
+        if (session != null && session.Halted)
             return;
 
         if (IsTelegraphing && TelegraphTimer.Expired(Runner))

@@ -34,7 +34,7 @@ public class CrownMatchState : NetworkBehaviour
             return;
 
         var session = MatchmakingSessionState.Local;
-        if (session != null && session.Frozen)
+        if (session != null && session.Halted)
             return;
 
         if (ProtectionTicksRemaining > 0)

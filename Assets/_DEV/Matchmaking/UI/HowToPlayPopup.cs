@@ -48,6 +48,11 @@ public class HowToPlayPopup : MonoBehaviour
     {
         Instance = this;
         group = GetComponent<CanvasGroup>();
+
+        // Sharing an object (and so a CanvasGroup) with another screen makes them hide each other.
+        if (GetComponent<PauseUI>() != null || GetComponent<LobbyUI>() != null || GetComponent<MatchMakingUI>() != null)
+            Debug.LogError("[HowToPlayPopup] It's on the same object as another screen - they share one CanvasGroup " +
+                           "and hide each other. Put HowToPlayPopup on its own object.", this);
         if (flowController == null) flowController = FindFirstObjectByType<MatchmakingFlowController>();
 
         if (openButtons != null)

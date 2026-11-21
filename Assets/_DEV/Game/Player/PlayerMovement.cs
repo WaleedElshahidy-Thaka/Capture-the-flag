@@ -154,9 +154,33 @@ public class PlayerMovement : NetworkBehaviour
         });
     }
 
+    // Solo pause bookkeeping (host only - the only peer in a solo match).
+    bool pauseHeld;
+    Vector3 velocityBeforePause, angularBeforePause;
+
     public override void FixedUpdateNetwork()
     {
         var session = MatchmakingSessionState.Local;
+        if (session != null && session.Paused && !session.Frozen)
+        {
+            // Solo pause: remember how the car was moving, hold it still, and give it all back on resume.
+            if (!pauseHeld)
+            {
+                pauseHeld = true;
+                velocityBeforePause = body.linearVelocity;
+                angularBeforePause = body.angularVelocity;
+            }
+            body.linearVelocity = Vector3.zero;
+            body.angularVelocity = Vector3.zero;
+            return;
+        }
+        if (pauseHeld)
+        {
+            pauseHeld = false;
+            body.linearVelocity = velocityBeforePause;
+            body.angularVelocity = angularBeforePause;
+        }
+
         if (session != null && session.Frozen)
         {
             // Held still after a host migration until the shared resume tick.

@@ -181,6 +181,14 @@ public class InGameUI : MonoBehaviour
 
     void RefreshTimer(MatchTimerState timer)
     {
+        if (timer.InIntro)
+        {
+            // Under the start fade, before the 3-2-1.
+            SetText(timerTitle, "GET READY");
+            SetText(timerText, "");
+            return;
+        }
+
         if (timer.InCountdown)
         {
             SetText(timerTitle, "STARTS IN");

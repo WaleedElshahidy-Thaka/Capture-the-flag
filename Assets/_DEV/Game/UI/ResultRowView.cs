@@ -38,7 +38,7 @@ public class ResultRowView : MonoBehaviour
         }
 
         if (rankText != null) rankText.text = rank.ToString();
-        if (levelText != null) levelText.gameObject.SetActive(false);
+        if (levelText == null) levelText.gameObject.SetActive(false);
         if (nameText != null) nameText.text = (entry.name ?? "PLAYER").ToUpperInvariant();
 
         string label = entry.isLocal ? youTag : entry.isBot ? botTag : null;

@@ -17,6 +17,11 @@ public class MatchmakingSessionState : NetworkBehaviour, IAfterHostMigration
     [Networked] int MigratedAtTick { get; set; }
     [Networked] public NetworkBool Frozen { get; set; }   // cars held still while players reconnect
     [Networked] int ResumeAtTick { get; set; }            // 0 = still waiting for players
+    // Solo with bots: the pause menu really pauses (PauseUI). Appended - keep it last.
+    [Networked] public NetworkBool Paused { get; set; }
+
+    // Everything that moves or counts holds still: a host migration, or a solo pause.
+    public bool Halted => Frozen || Paused;
 
     // The instance on this peer (host and clients alike).
     public static MatchmakingSessionState Local;

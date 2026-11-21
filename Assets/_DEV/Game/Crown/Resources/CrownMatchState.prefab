@@ -84,5 +84,6 @@ MonoBehaviour:
   durationSeconds: 150
   pointsPerSecond: 0.6
   countdownSeconds: 3
+  introSeconds: 5.5
   _Finished:
     RawValue: 0

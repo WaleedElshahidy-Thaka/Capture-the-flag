@@ -1,4 +1,3 @@
-
 using Fusion;
 using UnityEngine;
 
@@ -26,7 +25,7 @@ public static class PowerUpRoller
     {
         int overdrive = OverdriveWeight;
         int grapple = isCrownHolder ? 0 : GrappleWeight;
-        int damper = isCrownHolder? DamperWeight : 0;
+        int damper = isCrownHolder ? DamperWeight : 0;
         int oil = OilWeight;
         int repulse = RepulseWeight;
 
@@ -37,7 +36,9 @@ public static class PowerUpRoller
             if (!isCrownHolder)
                 grapple += TrailingBonus;
 
-            damper += TrailingBonus;
+            // Damper only helps the holder - never add it to a non-holder's pool, even when trailing.
+            if (isCrownHolder)
+                damper += TrailingBonus;
             oil += TrailingBonus;
         }
 

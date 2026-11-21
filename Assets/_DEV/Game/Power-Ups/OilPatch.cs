@@ -93,7 +93,7 @@ public sealed class OilPatch : NetworkBehaviour
         if (!Object.HasStateAuthority) return;
 
         var session = MatchmakingSessionState.Local;
-        if (session != null && session.Frozen) return;
+        if (session != null && session.Halted) return;
 
         AgeTicks++;
         if (AgeTicks >= LifetimeTicks)

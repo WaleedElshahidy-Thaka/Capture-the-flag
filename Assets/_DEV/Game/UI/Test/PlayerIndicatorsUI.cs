@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using Fusion;
 using Fusion.Addons.Physics;
 using UnityEngine;
@@ -34,6 +34,19 @@ public class PlayerIndicatorsUI : MonoBehaviour
     [SerializeField] bool showCrownHolderDistance = true;
     [Tooltip("Show the distance on everyone's marker.")]
     [SerializeField] bool showEveryoneDistance = false;
+
+    [Header("Free Crown (before anyone holds it)")]
+    [Tooltip("Show a marker on the Crown while nobody holds it - while it's spawning (telegraph) and waiting " +
+             "to be picked up. Hidden as soon as someone takes it (the holder's marker wears the crown then).")]
+    [SerializeField] bool showFreeCrown = true;
+    [Tooltip("Marker for the free Crown. Empty = the player Marker Prefab (its crown badge is switched on).")]
+    [SerializeField] PlayerIndicatorView crownMarkerPrefab;
+    [SerializeField] Color crownMarkerColor = new Color(1f, 0.8f, 0.2f);
+    [Tooltip("Marker height above the Crown, in metres.")]
+    [SerializeField] float heightAboveCrown = 1.5f;
+    [SerializeField] bool showFreeCrownDistance = true;
+    [Tooltip("While the Crown is still spawning (the telegraph), the marker pulses.")]
+    [SerializeField, Min(0f)] float telegraphPulseSpeed = 6f;
 
     RectTransform area;
     Canvas canvas;
@@ -84,6 +97,8 @@ public class PlayerIndicatorsUI : MonoBehaviour
             Place(marker, car, cam, holder, Vector3.Distance(me, car.transform.position));
         }
 
+        PlaceFreeCrown(cam, crown, me);
+
         // Cars that left: drop their markers.
         stale.Clear();
         foreach (var pair in markers) if (!seen.Contains(pair.Key)) stale.Add(pair.Key);
@@ -96,7 +111,62 @@ public class PlayerIndicatorsUI : MonoBehaviour
 
     void Place(PlayerIndicatorView marker, PlayerMatchState car, Camera cam, bool holder, float distance)
     {
-        Vector3 world = VisualPosition(car) + Vector3.up * heightAboveCar;
+        bool showDistance = showEveryoneDistance || (holder && showCrownHolderDistance);
+        PlaceAt(marker, VisualPosition(car) + Vector3.up * heightAboveCar, cam,
+                SeatPalette.Get(car.Slot), holder, distance, showDistance);
+    }
+
+    // ─── Free Crown ───────────────────────────────────────────────────────
+
+    PlayerIndicatorView crownMarker;
+    CanvasGroup crownMarkerGroup;
+    DataCrown dataCrown;
+    float nextCrownLookup;
+
+    // The Crown before anyone has it: spawning (telegraph) or lying free. Same edge arrows as the cars,
+    // gold, with its distance - so everyone can race for it from anywhere in the arena.
+    void PlaceFreeCrown(Camera cam, CrownMatchState crown, Vector3 me)
+    {
+        if (Time.unscaledTime >= nextCrownLookup || dataCrown == null)
+        {
+            nextCrownLookup = Time.unscaledTime + 0.5f;
+            dataCrown = FindFirstObjectByType<DataCrown>();
+        }
+
+        bool free = showFreeCrown && dataCrown != null && dataCrown.Object != null && dataCrown.Object.IsValid &&
+                    (crown == null || !crown.HasHolder) &&
+                    (dataCrown.IsTelegraphing || dataCrown.IsPickupAvailable);
+
+        if (!free)
+        {
+            if (crownMarker != null) SetVisible(crownMarker, false);
+            return;
+        }
+
+        if (crownMarker == null)
+        {
+            var prefab = crownMarkerPrefab != null ? crownMarkerPrefab : markerPrefab;
+            if (prefab == null) return;
+            crownMarker = Instantiate(prefab, area);
+            crownMarker.name = "FreeCrownMarker";
+            crownMarkerGroup = crownMarker.GetComponent<CanvasGroup>();
+            if (crownMarkerGroup == null) crownMarkerGroup = crownMarker.gameObject.AddComponent<CanvasGroup>();
+            crownMarkerGroup.blocksRaycasts = false;
+        }
+
+        Vector3 position = dataCrown.transform.position;
+        PlaceAt(crownMarker, position + Vector3.up * heightAboveCrown, cam, crownMarkerColor,
+                true, Vector3.Distance(me, position), showFreeCrownDistance);
+
+        // Spawning: pulse. Ready to grab: solid.
+        crownMarkerGroup.alpha = dataCrown.IsTelegraphing
+            ? 0.55f + 0.45f * Mathf.Abs(Mathf.Sin(Time.unscaledTime * telegraphPulseSpeed))
+            : 1f;
+    }
+
+    void PlaceAt(PlayerIndicatorView marker, Vector3 world, Camera cam, Color color, bool crownBadge,
+                 float distance, bool showDistance)
+    {
         Vector3 screen = cam.WorldToScreenPoint(world);
 
         // Behind the camera, the projection comes out mirrored: flip it so the arrow points the
@@ -134,8 +204,7 @@ public class PlayerIndicatorsUI : MonoBehaviour
 
         // Local point is relative to the area's pivot; markers are anchored the same way.
         marker.Rect.anchorMin = marker.Rect.anchorMax = area.pivot;
-        bool showDistance = showEveryoneDistance || (holder && showCrownHolderDistance);
-        marker.Show(local, !onScreen, angle, SeatPalette.Get(car.Slot), holder, distance, showDistance);
+        marker.Show(local, !onScreen, angle, color, crownBadge, distance, showDistance);
     }
 
     // The render-interpolated child, so markers glide smoothly between network ticks.
@@ -149,6 +218,7 @@ public class PlayerIndicatorsUI : MonoBehaviour
     void HideAll()
     {
         foreach (var pair in markers) if (pair.Value != null) SetVisible(pair.Value, false);
+        if (crownMarker != null) SetVisible(crownMarker, false);
     }
 
     static void SetVisible(PlayerIndicatorView marker, bool visible)

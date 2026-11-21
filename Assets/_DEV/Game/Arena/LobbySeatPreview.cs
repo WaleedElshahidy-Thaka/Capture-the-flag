@@ -29,6 +29,11 @@ public class LobbySeatPreview : MonoBehaviour
     [Tooltip("Hide this stand-in when that player's real car appears in the lobby. Off (new flow): real cars " +
              "wait at their match start spots, so the stand-ins stay up for the whole lobby.")]
     [SerializeField] bool handOverToRealCars = false;
+    [Tooltip("Off (default): an empty seat shows nothing - only you and the players who have joined the lobby " +
+             "appear, each popping in as they join. On: empty seats show a robot named BOT.")]
+    [SerializeField] bool showEmptySeatsAsBots = false;
+    [Tooltip("How long a robot takes to pop in when its player joins (seconds). 0 = appears at once.")]
+    [SerializeField, Min(0f)] float popInSeconds = 0.3f;
 
     [Header("Seat colour (the ring, frames, pointer)")]
     [SerializeField] Renderer[] tintRenderers;
@@ -60,9 +65,11 @@ public class LobbySeatPreview : MonoBehaviour
             shown = show;
             if (visual != null) visual.SetActive(show);
             if (nameTag != null) nameTag.SetActive(show);
+            if (show) shownAt = Time.unscaledTime; // pop in
         }
 
         if (!show) return;
+        PopIn();
 
         string name = occupant != null ? NameOf(occupant)
                     : seat == LocalSeat() ? PlayerIdentity.LocalDisplayName
@@ -91,6 +98,9 @@ public class LobbySeatPreview : MonoBehaviour
     }
 
     // Your seat: your car's seat once you have one, seat 0 before (offline / connecting).
+    // Your seat once the session has given you one; before that (not searching yet, or connecting)
+    // your robot stands in seat 0. Seats are handed out from 0 in join order, so when you start your
+    // own lobby you stay in seat 0 - no jump. Joining someone else's lobby moves you to the seat you get.
     static int LocalSeat()
     {
         var local = PlayerRoster.Local;
@@ -104,12 +114,34 @@ public class LobbySeatPreview : MonoBehaviour
         var session = MatchmakingSessionState.Local;
         if (session != null && session.MatchStarting) return false;
 
+        // Who's actually here: you, or a player who has finished joining the lobby (same rule as the
+        // lobby list). An empty seat stays empty unless Show Empty Seats As Bots is on.
+        var me = PlayerRoster.Local;
+        bool mySeat = seat == LocalSeat();
+        bool joined = occupant != null && (occupant == me || occupant.InLobby);
+        if (!showEmptySeatsAsBots && !mySeat && !joined) return false;
+
         if (!handOverToRealCars) return true;
 
         // The real car is visible here (same rule as PlayerLobbyVisibility): step aside for it.
         var own = PlayerRoster.Local;
         bool realCarVisible = occupant != null && own != null && own.InLobby && occupant.InLobby;
         return !realCarVisible;
+    }
+
+    // Grows from nothing to full size with a little overshoot when the robot appears.
+    float shownAt = -999f;
+    Vector3 visualScale = Vector3.zero;
+
+    void PopIn()
+    {
+        if (visual == null || popInSeconds <= 0f) return;
+        if (visualScale == Vector3.zero) visualScale = visual.transform.localScale;
+
+        float t = Mathf.Clamp01((Time.unscaledTime - shownAt) / popInSeconds);
+        const float c1 = 1.70158f, c3 = c1 + 1f;
+        float k = 1f + c3 * Mathf.Pow(t - 1f, 3f) + c1 * Mathf.Pow(t - 1f, 2f); // ease out, small bounce
+        visual.transform.localScale = visualScale * Mathf.Max(0f, k);
     }
 
     static string NameOf(PlayerMatchState car)
