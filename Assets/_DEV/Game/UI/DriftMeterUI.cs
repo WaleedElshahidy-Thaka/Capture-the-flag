@@ -69,6 +69,16 @@ public class DriftMeterUI : MonoBehaviour
     [SerializeField] Color windowFlashColor = Color.white;
     [SerializeField, Min(0.1f)] float flashSpeed = 12f;
 
+    [Header("BOOST! prompt")]
+    [Tooltip("The BOOST! image. Hidden until a boost window opens, then blinks until you boost or the window closes.")]
+    [SerializeField] Graphic boostPrompt;
+    [Tooltip("Blinks per second.")]
+    [SerializeField, Min(0.5f)] float promptBlinkRate = 6f;
+    [Tooltip("Alpha during the 'off' part of the blink (0 = fully gone).")]
+    [SerializeField, Range(0f, 1f)] float promptOffAlpha = 0f;
+    [Tooltip("Off = hard on/off flashing. On = a smooth pulse.")]
+    [SerializeField] bool promptSmoothPulse = false;
+
     [Header("Show fill only while drifting")]
     [Tooltip("The fill fades in when the slide starts and out when it ends (it stays during a boost window).")]
     [SerializeField] bool hideFillWhenNotDrifting = true;
@@ -123,6 +133,8 @@ public class DriftMeterUI : MonoBehaviour
 
         if (fill == null && slider.fillRect != null) fill = slider.fillRect.GetComponent<Image>();
         if (marker == null && slider.handleRect != null) marker = slider.handleRect.GetComponent<Graphic>();
+
+        if (boostPrompt != null) boostPrompt.canvasRenderer.SetAlpha(0f);
 
         // Start hidden: nothing to show until the first drift.
         if (fill != null && hideFillWhenNotDrifting)
@@ -209,6 +221,8 @@ public class DriftMeterUI : MonoBehaviour
         if (flag != null && flag.TryGetComponent(out Graphic flagGraphic))
             flagGraphic.color = Color.Lerp(markerColor, windowFlashColor, flash);
 
+        UpdateBoostPrompt(window);
+
         // 1X / 2X / 3X while the window is open, gone when it closes.
         if (boostMultiplierText != null)
         {
@@ -226,6 +240,24 @@ public class DriftMeterUI : MonoBehaviour
             string text = window ? (windowText ?? "{0}").Replace("{0}", move.DriftWindowStage.ToString()) : idleText;
             if (label.text != text) label.text = text;
         }
+    }
+
+    // BOOST! blinks while a window is open, starting "on" the moment it opens. SetAlpha on the
+    // CanvasRenderer: no mesh or layout rebuild per frame.
+    void UpdateBoostPrompt(bool window)
+    {
+        if (boostPrompt == null) return;
+
+        float alpha = 0f;
+        if (window)
+        {
+            float phase = (Time.unscaledTime - windowOpenedAt) * promptBlinkRate; // 0 = just opened
+            float wave = promptSmoothPulse
+                ? 0.5f + 0.5f * Mathf.Cos(phase * 2f * Mathf.PI)   // starts at full
+                : (phase % 1f < 0.5f ? 1f : 0f);                    // on for the first half of each blink
+            alpha = Mathf.Lerp(promptOffAlpha, 1f, wave);
+        }
+        boostPrompt.canvasRenderer.SetAlpha(alpha);
     }
 
     // Threshold that starts stage n's bar: 0 for stage 0, then each stage threshold.

@@ -72,6 +72,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: SM_Vase_D01
       objectReference: {fileID: 0}
+    - target: {fileID: 7851345216683954848, guid: e7c02fc081f813545b544d3c26e4dcfd, type: 3}
+      propertyPath: m_IsActive
+      value: 1
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []

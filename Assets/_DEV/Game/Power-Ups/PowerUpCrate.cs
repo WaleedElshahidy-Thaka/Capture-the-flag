@@ -31,6 +31,9 @@ public class PowerUpCrate : NetworkBehaviour
     [Networked]
     private NetworkBool IsVisible { get; set; }
 
+    /// <summary>True while the crate is in the world (false between a pickup and its respawn). For visuals.</summary>
+    public bool IsShown => IsVisible;
+
     [Networked]
     private NetworkBool PickupPending { get; set; }
 

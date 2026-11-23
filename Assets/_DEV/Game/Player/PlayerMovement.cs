@@ -82,6 +82,8 @@ public class PlayerMovement : NetworkBehaviour
     public bool IsBoosting => ReadDriftState().IsBoosting;
     public bool IsOverdriveActive => OverdriveActive;
     public int LastBoostTick => LastBoostStartTick;          // changes on every new boost / stage / chain (for visuals)
+    public float SteerValue => SteerInput;                   // applied steer, networked (audio: wheel scrub)
+    public float BoostMultiplierValue => BoostMultiplier;    // current boost's multiplier, networked (audio: stage)
     public bool IsChained => ReadDriftState().IsChained;
     public int DriftStage => DriftBoost.CurrentStage(ReadDriftState(), handling);
     public float DriftReserveValue => DriftReserve;
