@@ -64,6 +64,7 @@ public class PlayerMovement : NetworkBehaviour
     [Networked] int DriftWindowStageValue { get; set; }
     [Networked] int DriftWindowTicks { get; set; }
     [Networked] int DriftNotSlidingTicks { get; set; }
+    [Networked] NetworkBool OverdriveActive { get; set; }  // the boost Overdrive started is still running
 
     public bool IsSpinningOut => SpinoutTicksRemaining > 0;
     public bool HasContactImmunity => ImmunityTicksRemaining > 0;
@@ -79,6 +80,8 @@ public class PlayerMovement : NetworkBehaviour
     public DriftPhase CurrentDriftPhase => (DriftPhase)DriftPhaseValue;
     public bool IsSliding => ReadDriftState().IsSliding;
     public bool IsBoosting => ReadDriftState().IsBoosting;
+    public bool IsOverdriveActive => OverdriveActive;
+    public int LastBoostTick => LastBoostStartTick;          // changes on every new boost / stage / chain (for visuals)
     public bool IsChained => ReadDriftState().IsChained;
     public int DriftStage => DriftBoost.CurrentStage(ReadDriftState(), handling);
     public float DriftReserveValue => DriftReserve;
@@ -235,6 +238,10 @@ public class PlayerMovement : NetworkBehaviour
 
         WriteDriftState(drift);
 
+        // Overdrive lasts as long as the boost it started (including any chain on top of it).
+        if (OverdriveActive && !drift.IsBoosting)
+            OverdriveActive = false;
+
         // 2. Hand the modifiers to the drive model. Grip and yaw are applied automatically while
         //    Sliding (not a button). Boost raises the target speed with no clamp; the drive model's
         //    overspeed_decay brings the car back down afterwards.
@@ -296,6 +303,7 @@ public class PlayerMovement : NetworkBehaviour
         DriftBoostState drift = ReadDriftState();
         DriftBoost.StartBoost(ref drift, 3, driveModel.ForwardSpeed, handling, Runner.Tick.Raw);
         WriteDriftState(drift);
+        OverdriveActive = true;
     }
 
     // Respawn clears both reserve and chain. Call from the respawn code.
@@ -304,6 +312,7 @@ public class PlayerMovement : NetworkBehaviour
         DriftBoostState drift = ReadDriftState();
         DriftBoost.Reset(ref drift);
         WriteDriftState(drift);
+        OverdriveActive = false;
         contactSinceLastTick = false;
     }
 

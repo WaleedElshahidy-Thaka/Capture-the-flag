@@ -18,6 +18,11 @@ public sealed class GrappleField : NetworkBehaviour
     private static float MinimumRelativeSpeed =>
         Values.grappleMinimumRelativeSpeed;
 
+    [Header("Crown Holder")]
+    [Tooltip("If the Crown holder activates Grapple, it runs this long and then ends (it can't steal from itself).")]
+    [SerializeField, Min(0.1f)]
+    private float holderActiveSeconds = 1f;
+
     [Header("Debug")]
     [SerializeField]
     private bool logGrapple = true;
@@ -33,8 +38,56 @@ public sealed class GrappleField : NetworkBehaviour
     [Networked]
     private TickTimer ActiveTimer { get; set; }
 
+    // True when the Crown holder activated Grapple: it runs holderActiveSeconds and is not ended by holding.
+    [Networked]
+    private NetworkBool StartedAsHolder { get; set; }
+
     public float GrappleReachBonus => ReachBonus;
     public BoxCollider BodyCollider => bodyCollider;
+
+    /// <summary>
+    /// Radius of the steal circle around this car: body half-length + Grapple reach bonus.
+    /// The single source of truth for both the steal check and GrappleFieldRingFX.
+    /// </summary>
+    public float StealRadius
+    {
+        get
+        {
+            if (bodyCollider == null)
+                return ReachBonus;
+
+            Vector3 scale = bodyCollider.transform.lossyScale;
+            float halfLength = Mathf.Max(bodyCollider.size.x * scale.x, bodyCollider.size.z * scale.z) * 0.5f;
+            return halfLength + ReachBonus;
+        }
+    }
+
+    /// <summary>
+    /// True if any part of the holder's body is inside the steal circle (measured flat, on X/Z).
+    /// </summary>
+    public bool IsInStealRange(BoxCollider holder)
+    {
+        if (bodyCollider == null || holder == null)
+            return false;
+
+        Vector3 centre = bodyCollider.bounds.center;
+        Vector3 offset = holder.ClosestPoint(centre) - centre;
+        offset.y = 0f;
+
+        float radius = StealRadius;
+        return offset.sqrMagnitude <= radius * radius;
+    }
+
+    /// <summary>
+    /// Estimated gap between the closest surface points of two body colliders (not their centres).
+    /// </summary>
+    public static float SurfaceGap(BoxCollider chaser, BoxCollider holder)
+    {
+        Vector3 pointOnHolder = holder.ClosestPoint(chaser.bounds.center);
+        Vector3 pointOnChaser = chaser.ClosestPoint(pointOnHolder);
+        pointOnHolder = holder.ClosestPoint(pointOnChaser);
+        return Vector3.Distance(pointOnChaser, pointOnHolder);
+    }
 
     private void Awake()
     {
@@ -76,18 +129,31 @@ public sealed class GrappleField : NetworkBehaviour
         if (crown == null /*|| crown.IsHolder(Object)*/) // uncomment this line to restrict to non-Crown holders only
             return false;
 
+        // The holder can't steal from itself, so its Grapple only shows briefly and ends.
+        StartedAsHolder = crown.IsHolder(Object);
+        float seconds = StartedAsHolder ? holderActiveSeconds : DurationSeconds;
+
         IsActive = true;
-        ActiveTimer = TickTimer.CreateFromSeconds(
-            Runner, DurationSeconds);
+        ActiveTimer = TickTimer.CreateFromSeconds(Runner, seconds);
 
         if (logGrapple)
         {
             Debug.Log(
                 $"[GrappleField] Activated on {name} " +
-                $"for {DurationSeconds:F1} seconds.");
+                $"for {seconds:F1} seconds{(StartedAsHolder ? " (Crown holder)" : "")}.");
         }
 
         return true;
+    }
+
+    private void Deactivate(string reason)
+    {
+        IsActive = false;
+        ActiveTimer = TickTimer.None;
+        StartedAsHolder = false;
+
+        if (logGrapple)
+            Debug.Log($"[GrappleField] Ended on {name}: {reason}.");
     }
 
     public override void FixedUpdateNetwork()
@@ -100,22 +166,28 @@ public sealed class GrappleField : NetworkBehaviour
 
         if (ActiveTimer.Expired(Runner))
         {
-            IsActive = false;
-            ActiveTimer = TickTimer.None;
-
-            if (logGrapple)
-                Debug.Log($"[GrappleField] Expired on {name}.");
-
+            Deactivate("expired");
             return;
         }
 
-        CheckForNearMissSteal();
+        CrownMatchState crown = CrownMatchState.Instance;
+
+        // Captured the Crown (by Grapple or any other way) -> the power is spent.
+        if (!StartedAsHolder && crown != null && crown.IsHolder(networkObject))
+        {
+            Deactivate("captured the Crown");
+            return;
+        }
+
+        if (CheckForNearMissSteal())
+            Deactivate("captured the Crown");
     }
 
-    private void CheckForNearMissSteal()
+    /// <summary>Returns true if this call stole the Crown.</summary>
+    private bool CheckForNearMissSteal()
     {
         if (bodyCollider == null || body == null)
-            return;
+            return false;
 
         CrownMatchState crown = CrownMatchState.Instance;
 
@@ -123,25 +195,25 @@ public sealed class GrappleField : NetworkBehaviour
             crown.Object == null ||
             !crown.Object.HasStateAuthority)
         {
-            return;
+            return false;
         }
 
         // The effect cannot steal if its owner already holds the Crown.
         if (crown.IsHolder(networkObject))
-            return;
+            return false;
 
         if (!crown.HasHolder)
-            return;
+            return false;
 
         // Resolve the current holder from the replicated NetworkId.
         if (!Runner.TryFindObject(crown.HolderId, out NetworkObject holderObject))
-            return;
+            return false;
 
         if (holderObject == null || holderObject == networkObject)
-            return;
+            return false;
 
         if (!holderObject.HasStateAuthority)
-            return;
+            return false;
 
         BoxCollider holderCollider =
             holderObject.GetComponent<BoxCollider>();
@@ -154,37 +226,25 @@ public sealed class GrappleField : NetworkBehaviour
             !holderCollider.enabled ||
             !bodyCollider.enabled)
         {
-            return;
+            return false;
         }
 
-        // Estimate the closest surface points between the body colliders.
-        // This avoids measuring from the car centers.
-        Vector3 pointOnHolder =
-            holderCollider.ClosestPoint(bodyCollider.bounds.center);
-
-        Vector3 pointOnChaser =
-            bodyCollider.ClosestPoint(pointOnHolder);
-
-        pointOnHolder =
-            holderCollider.ClosestPoint(pointOnChaser);
-
-        float surfaceDistance =
-            Vector3.Distance(pointOnChaser, pointOnHolder);
+        // Steal area: a circle around this car (same radius the ring shows).
+        if (!IsInStealRange(holderCollider))
+            return false;
 
         // Physical contact is handled by CarContactClassifier.
-        // Grapple only handles a small gap between the body colliders.
-        if (surfaceDistance <= 0.01f ||
-            surfaceDistance > ReachBonus)
-        {
-            return;
-        }
+        float surfaceDistance = SurfaceGap(bodyCollider, holderCollider);
+
+        if (surfaceDistance <= 0.01f)
+            return false;
 
         // A stationary car sitting nearby should not steal the Crown.
         float relativeSpeed =
             (body.linearVelocity - holderBody.linearVelocity).magnitude;
 
         if (relativeSpeed < MinimumRelativeSpeed)
-            return;
+            return false;
 
         // A Repulse shove never moves the Crown (FD-04), near-miss included.
         PlayerMovement holderMovement = holderObject.GetComponent<PlayerMovement>();
@@ -192,7 +252,7 @@ public sealed class GrappleField : NetworkBehaviour
         if ((movement != null && movement.IsBeingShoved) ||
             (holderMovement != null && holderMovement.IsBeingShoved))
         {
-            return;
+            return false;
         }
 
         // Preserve Damper Field's protection behavior.
@@ -207,7 +267,7 @@ public sealed class GrappleField : NetworkBehaviour
                     $"{holderObject.name} is protected by Damper Field.");
             }
 
-            return;
+            return false;
         }
 
         // TryTransfer checks Crown protection and resets protection
@@ -225,5 +285,7 @@ public sealed class GrappleField : NetworkBehaviour
                     : $"[GrappleField] Near-miss transfer rejected " +
                       $"for {name}. Crown may be protected.");
         }
+
+        return transferred;
     }
 }

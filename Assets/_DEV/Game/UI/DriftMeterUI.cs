@@ -69,6 +69,11 @@ public class DriftMeterUI : MonoBehaviour
     [SerializeField] Color windowFlashColor = Color.white;
     [SerializeField, Min(0.1f)] float flashSpeed = 12f;
 
+    [Header("Show fill only while drifting")]
+    [Tooltip("The fill fades in when the slide starts and out when it ends (it stays during a boost window).")]
+    [SerializeField] bool hideFillWhenNotDrifting = true;
+    [SerializeField, Min(0.01f)] float fillFadeSeconds = 0.15f;
+
     [Header("Text")]
     [SerializeField] string idleText = "DRIFT";
     [Tooltip("{0} = the stage whose window is open.")]
@@ -78,6 +83,7 @@ public class DriftMeterUI : MonoBehaviour
     int shownStage = -1;
     int shownWindowStage;
     float windowOpenedAt;
+    float fillAlpha;       // 0 hidden .. 1 shown (see hideFillWhenNotDrifting)
 
     // How full the bar looks for a real progress p (0..1) through a stage.
     //   before slowdownStart: a steady fill up to fillAtSlowdown
@@ -117,6 +123,14 @@ public class DriftMeterUI : MonoBehaviour
 
         if (fill == null && slider.fillRect != null) fill = slider.fillRect.GetComponent<Image>();
         if (marker == null && slider.handleRect != null) marker = slider.handleRect.GetComponent<Graphic>();
+
+        // Start hidden: nothing to show until the first drift.
+        if (fill != null && hideFillWhenNotDrifting)
+        {
+            Color c = fill.color;
+            c.a = 0f;
+            fill.color = c;
+        }
 
         // Put the flag at its spot along its parent (anchors only, so it follows the bar's size).
         if (flag != null && placeFlag)
@@ -181,8 +195,14 @@ public class DriftMeterUI : MonoBehaviour
 
         if (fill != null)
         {
+            // Visible only while drifting (or a boost window is open), with a short fade.
+            bool drifting = !hideFillWhenNotDrifting || move.IsSliding || window;
+            fillAlpha = Mathf.MoveTowards(fillAlpha, drifting ? 1f : 0f, Time.unscaledDeltaTime / fillFadeSeconds);
+
             Color c = stage >= 3 ? maxedColor : ChargeColor(stage);
-            fill.color = Color.Lerp(c, windowFlashColor, flash);
+            c = Color.Lerp(c, windowFlashColor, flash);
+            c.a *= fillAlpha;
+            fill.color = c;
         }
         if (marker != null)
             marker.color = Color.Lerp(markerColor, windowFlashColor, flash);

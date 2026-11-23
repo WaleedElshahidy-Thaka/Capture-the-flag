@@ -35,6 +35,15 @@ public class PlayerIndicatorsUI : MonoBehaviour
     [Tooltip("Show the distance on everyone's marker.")]
     [SerializeField] bool showEveryoneDistance = false;
 
+    [Header("Hide when close")]
+    [Tooltip("Player markers disappear when that car is closer than this (metres) - you can see it anyway. " +
+             "0 = never hide. The free Crown's marker is never hidden.")]
+    [SerializeField, Min(0f)] float hideWithinDistance = 10f;
+    [Tooltip("Fade over this many metres beyond Hide Within Distance, instead of popping off.")]
+    [SerializeField, Min(0f)] float hideFadeDistance = 4f;
+    [Tooltip("Keep the Crown holder's marker even up close (it shows who has the Crown).")]
+    [SerializeField] bool keepCrownHolderWhenClose = true;
+
     [Header("Free Crown (before anyone holds it)")]
     [Tooltip("Show a marker on the Crown while nobody holds it - while it's spawning (telegraph) and waiting " +
              "to be picked up. Hidden as soon as someone takes it (the holder's marker wears the crown then).")]
@@ -94,7 +103,18 @@ public class PlayerIndicatorsUI : MonoBehaviour
             }
 
             bool holder = crown != null && crown.IsHolder(car.Object);
-            Place(marker, car, cam, holder, Vector3.Distance(me, car.transform.position));
+            float distance = Vector3.Distance(me, car.transform.position);
+
+            // Too close: fade out, then hide (you can see the car anyway). The holder can be exempt.
+            float closeAlpha = CloseAlpha(distance, holder);
+            if (closeAlpha <= 0f)
+            {
+                SetVisible(marker, false);
+                continue;
+            }
+
+            Place(marker, car, cam, holder, distance);
+            if (marker.gameObject.activeSelf) MarkerGroup(marker).alpha = closeAlpha;
         }
 
         PlaceFreeCrown(cam, crown, me);
@@ -107,6 +127,25 @@ public class PlayerIndicatorsUI : MonoBehaviour
             if (markers[id] != null) Destroy(markers[id].gameObject);
             markers.Remove(id);
         }
+    }
+
+    // 1 far away, fading to 0 as the car comes within Hide Within Distance.
+    float CloseAlpha(float distance, bool holder)
+    {
+        if (hideWithinDistance <= 0f || (holder && keepCrownHolderWhenClose)) return 1f;
+        if (hideFadeDistance <= 0f) return distance < hideWithinDistance ? 0f : 1f;
+        return Mathf.Clamp01((distance - hideWithinDistance) / hideFadeDistance);
+    }
+
+    static CanvasGroup MarkerGroup(PlayerIndicatorView marker)
+    {
+        var group = marker.GetComponent<CanvasGroup>();
+        if (group == null)
+        {
+            group = marker.gameObject.AddComponent<CanvasGroup>();
+            group.blocksRaycasts = false;
+        }
+        return group;
     }
 
     void Place(PlayerIndicatorView marker, PlayerMatchState car, Camera cam, bool holder, float distance)

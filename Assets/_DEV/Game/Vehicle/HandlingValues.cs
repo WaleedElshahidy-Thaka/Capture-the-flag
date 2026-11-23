@@ -35,15 +35,15 @@ public class HandlingValues
     [Header("Grapple Field")]
     //[Tooltip("grapple_ticks (FD-04), in seconds: provisional 6, range 4 to 8.")]
     [SerializeField, Range(4f, 8f)]
-    public float grappleDurationSeconds = 6f;
+    public float grappleDurationSeconds = 3f;
 
     [Tooltip("grapple_reach_bonus (FD-04): extra reach past the body collider, in metres. A near-miss, not an aura.")]
     [SerializeField, Min(0.01f)]
-    public float grappleReachBonus = 0.5f;
+    public float grappleReachBonus = 3f;
 
     [Tooltip("Minimum relative speed (m/s) for a near-miss steal, so a car parked beside the holder can't steal.")]
     [SerializeField, Min(0f)]
-    public float grappleMinimumRelativeSpeed = 1f;
+    public float grappleMinimumRelativeSpeed = 0.5f;
 
     [Header("Damper Field")]
     [Tooltip("damper_ticks (FD-04), in seconds: provisional 5, range 3 to 7. Feels longest to the opponents - keep it short.")]
@@ -55,7 +55,7 @@ public class HandlingValues
     [Header("Repulse Pulse")]
     [Tooltip("Charge-up (telegraph) length, in seconds. Long enough for nearby drivers to react. Range 0.3 to 1.5.")]
     [SerializeField, Range(0.3f, 1.5f)]
-    public float repulseChargeSeconds = 0.75f;
+    public float repulseChargeSeconds = 0.01f;
 
     [Tooltip("Reach of the pulse, in metres, measured flat from the user's centre.")]
     [SerializeField, Min(1f)]

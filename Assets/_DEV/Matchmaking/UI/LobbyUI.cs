@@ -273,7 +273,13 @@ public class LobbyUI : MonoBehaviour
         SetText(waitingTitle, title);
 
         for (int i = 0; i < countIcons.Count; i++)
-            countIcons[i].color = i < readyPlayers.Count ? iconReadyColor : iconEmptyColor;
+        {
+            bool found = i < readyPlayers.Count;
+            countIcons[i].color = found ? iconReadyColor : iconEmptyColor;
+
+            // A found player's icon stands still; empty seats keep hopping ("still searching").
+            if (countIcons[i].TryGetComponent(out UIHopOffset hop)) hop.Hop = !found;
+        }
     }
 
     // ─── Countdown ───────────────────────────────────────────────────────

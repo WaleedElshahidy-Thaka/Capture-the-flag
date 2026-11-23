@@ -17,6 +17,7 @@ public class ScoreboardRowView : MonoBehaviour
     [SerializeField] TMP_Text deltaText;
     [Tooltip("Shown on the Crown holder's row.")]
     [SerializeField] GameObject crownIcon;
+    [SerializeField] Image crownHolderBorder;
     [Tooltip("Shown on your own row (FD-01: your row is persistently highlighted).")]
     [SerializeField] GameObject localHighlight;
 
@@ -52,7 +53,11 @@ public class ScoreboardRowView : MonoBehaviour
         if (deltaText != null && deltaToLeader != lastDelta)
             deltaText.text = deltaToLeader > 0 ? $"-{deltaToLeader}" : ""; // leader shows nothing
 
-        if (crownIcon != null && (hasCrown != lastCrown || !initialised)) crownIcon.SetActive(hasCrown);
+        if (crownIcon != null && (hasCrown != lastCrown || !initialised))
+        {
+            crownIcon.SetActive(hasCrown);
+            if (crownHolderBorder != null) crownHolderBorder.enabled = hasCrown;
+        }
         if (localHighlight != null && (isLocal != lastLocal || !initialised)) localHighlight.SetActive(isLocal);
 
         lastRank = rank; lastName = playerName; lastScore = score; lastDelta = deltaToLeader;

@@ -26,6 +26,15 @@ public class LobbySeatPreview : MonoBehaviour
     [SerializeField] GameObject nameTag;
     [SerializeField] TMP_Text nameLabel;
     [SerializeField] string botName = "BOT";
+
+    [Header("Ready status (on the name tag)")]
+    [Tooltip("The icon on the name tag: a tick when this player has voted READY, a spinner while not.")]
+    [SerializeField] Image statusIcon;
+    [SerializeField] Sprite readySprite;    // the tick
+    [SerializeField] Sprite waitingSprite;  // the spinner ring
+    [SerializeField] float spinnerDegreesPerSecond = 270f;
+    [Tooltip("Tint the icon with the seat colour (like the lobby list). Off = keep the sprite's own colour.")]
+    [SerializeField] bool tintStatusIcon = true;
     [Tooltip("Hide this stand-in when that player's real car appears in the lobby. Off (new flow): real cars " +
              "wait at their match start spots, so the stand-ins stay up for the whole lobby.")]
     [SerializeField] bool handOverToRealCars = false;
@@ -79,6 +88,8 @@ public class LobbySeatPreview : MonoBehaviour
             nameLabel.text = name;
             shownName = name;
         }
+
+        RefreshStatus(occupant);
 
         if (nameTag != null) CameraFacing.FaceUpright(nameTag.transform);
     }
@@ -142,6 +153,25 @@ public class LobbySeatPreview : MonoBehaviour
         const float c1 = 1.70158f, c3 = c1 + 1f;
         float k = 1f + c3 * Mathf.Pow(t - 1f, 3f) + c1 * Mathf.Pow(t - 1f, 2f); // ease out, small bounce
         visual.transform.localScale = visualScale * Mathf.Max(0f, k);
+    }
+
+    // Ready -> tick. Not ready -> spinning ring. No player in the session yet (before searching) -> no icon.
+    // The same READY vote the lobby list shows, read from the player's replicated state.
+    void RefreshStatus(PlayerMatchState occupant)
+    {
+        if (statusIcon == null) return;
+
+        bool inSession = occupant != null;
+        if (statusIcon.gameObject.activeSelf != inSession) statusIcon.gameObject.SetActive(inSession);
+        if (!inSession) return;
+
+        bool ready = occupant.IsReady;
+        Sprite sprite = ready ? readySprite : waitingSprite;
+        if (sprite != null && statusIcon.sprite != sprite) statusIcon.sprite = sprite;
+        if (tintStatusIcon) statusIcon.color = WithAlpha(SeatPalette.Get(seat), statusIcon.color.a);
+
+        if (ready) statusIcon.rectTransform.localRotation = Quaternion.identity;
+        else statusIcon.rectTransform.Rotate(0f, 0f, -spinnerDegreesPerSecond * Time.unscaledDeltaTime);
     }
 
     static string NameOf(PlayerMatchState car)

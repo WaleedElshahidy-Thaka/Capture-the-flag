@@ -95,7 +95,7 @@
   "Stage1Threshold": 45.0,
   "Stage2Threshold": 100.0,
   "Stage3Threshold": 170.0,
-  "WindowTicks": 24,
+  "StageWindowTicks": 45,
   "Stage1BoostMultiplier": 1.18,
   "Stage2BoostMultiplier": 1.32,
   "Stage3BoostMultiplier": 1.5,
