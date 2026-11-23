@@ -60595,6 +60595,12 @@ MonoBehaviour:
   fill: {fileID: 1547508600}
   marker: {fileID: 0}
   label: {fileID: 1380721861}
+  boostMultiplierText: {fileID: 0}
+  boostMultiplierFormat: '{0}X'
+  flag: {fileID: 0}
+  flagPosition: 0.85
+  placeFlag: 1
+  fillPastFlagDuringWindow: 1
   slowdownStart: 0.5
   fillAtSlowdown:
   - 0.6
@@ -60609,6 +60615,8 @@ MonoBehaviour:
   markerColor: {r: 1, g: 1, b: 1, a: 0.35}
   windowFlashColor: {r: 1, g: 1, b: 1, a: 1}
   flashSpeed: 12
+  hideFillWhenNotDrifting: 1
+  fillFadeSeconds: 0.15
   idleText: DRIFT
   windowText: BOOST {0}!
 --- !u!1001 &535067993
@@ -103393,6 +103401,10 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 1637508200}
     m_Modifications:
+    - target: {fileID: 3034902026913228249, guid: 1c5e963f20330344b9f40ae993589e6c, type: 3}
+      propertyPath: m_IsActive
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 4711062960944124050, guid: 1c5e963f20330344b9f40ae993589e6c, type: 3}
       propertyPath: m_LocalScale.x
       value: 0.79672
@@ -139470,6 +139482,7 @@ MonoBehaviour:
   optionsTitle: OPTIONS
   howToPlayTitle: HOW TO PLAY
   subtitle: THE MATCH IS STILL RUNNING FOR EVERYONE
+  pausedSubtitle: THE MATCH IS PAUSED
   resumeButton: {fileID: 414271014}
   howToPlayButton: {fileID: 1829965205}
   optionsButton: {fileID: 369900760}
@@ -220913,6 +220926,15 @@ MonoBehaviour:
   showOnScreenMarkers: 1
   showCrownHolderDistance: 1
   showEveryoneDistance: 0
+  hideWithinDistance: 10
+  hideFadeDistance: 4
+  keepCrownHolderWhenClose: 1
+  showFreeCrown: 1
+  crownMarkerPrefab: {fileID: 0}
+  crownMarkerColor: {r: 1, g: 0.8, b: 0.2, a: 1}
+  heightAboveCrown: 1.5
+  showFreeCrownDistance: 1
+  telegraphPulseSpeed: 6
 --- !u!1001 &2039012363
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -238059,8 +238081,13 @@ MonoBehaviour:
   readyButton: {fileID: 399139416407897655}
   readyButtonText: {fileID: 1551633571780947282}
   leaveLobbyButton: {fileID: 2186876877787082728}
+  gameRulesButton: {fileID: 0}
+  startWithBotsLabel: START WITH BOTS
   readyLabel: READY
-  cancelLabel: CANCEL
+  waitingVoteLabel: WAITING FOR THE OTHER PLAYERS TO VOTE
+  allowUnready: 0
+  timerTitle: SEARCHING
+  timerFormat: '{0}s'
   canvasFadeSeconds: 0.4
   seatColors:
   - {r: 0.3, g: 0.55, b: 1, a: 1}
