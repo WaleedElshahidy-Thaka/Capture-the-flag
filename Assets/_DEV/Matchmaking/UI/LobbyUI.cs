@@ -252,9 +252,9 @@ public class LobbyUI : MonoBehaviour
             if (i < readyPlayers.Count)
             {
                 var player = readyPlayers[i];
-                // No level system yet: -1 hides the level text.
+                // Lobby level (PlayerLobbyProfile, networked); unknown shows LV. 1.
                 // Tick = voted READY, spinner = not yet.
-                slots[i].ShowPlayer(player.DisplayName.ToString(), -1, SeatColor(player.Slot),
+                slots[i].ShowPlayer(player.DisplayName.ToString(), SeatLevel(player), SeatColor(player.Slot),
                                     ready: player.IsReady, isLocal: player == local);
             }
             else
@@ -263,6 +263,9 @@ public class LobbyUI : MonoBehaviour
             }
         }
     }
+
+    // Unknown level shows as LV. 1, like every other level text.
+    static int SeatLevel(PlayerMatchState player) => PlayerLobbyProfile.DisplayLevel(PlayerLobbyProfile.LevelOf(player));
 
     void RefreshPlayerCount(MatchmakingPhase phase)
     {

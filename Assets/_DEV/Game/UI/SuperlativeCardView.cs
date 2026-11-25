@@ -14,7 +14,7 @@ public class SuperlativeCardView : MonoBehaviour
     [SerializeField] GameObject nameTag;
     [Tooltip("Tinted with the winner's seat colour.")]
     [SerializeField] Image nameTagFrame;
-    [Tooltip("No level system yet - hidden.")]
+    [Tooltip("The winner's lobby level ('LV. n'; bots / unknown show LV. 1).")]
     [SerializeField] TMP_Text levelText;
     [SerializeField] TMP_Text nameText;
     [SerializeField] string nobodyValue = "-";
@@ -29,7 +29,7 @@ public class SuperlativeCardView : MonoBehaviour
         if (entry == null) return;
 
         if (nameTagFrame != null) nameTagFrame.color = seatColor;
-        if (levelText == null) levelText.gameObject.SetActive(false);
+        if (levelText != null) levelText.text = PlayerLobbyProfile.LevelLabel(entry.level);
         if (nameText != null) nameText.text = (entry.name ?? "PLAYER").ToUpperInvariant();
     }
 }

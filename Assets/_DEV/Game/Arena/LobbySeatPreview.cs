@@ -25,7 +25,14 @@ public class LobbySeatPreview : MonoBehaviour
     [SerializeField] GameObject visual;
     [SerializeField] GameObject nameTag;
     [SerializeField] TMP_Text nameLabel;
+    [Tooltip("Optional: the seat's lobby level (yours from the launch args, others from PlayerLobbyProfile).")]
+    [SerializeField] TMP_Text levelLabel;
     [SerializeField] string botName = "BOT";
+
+    [Header("Robot (optional): the seat's chosen lobby robot + skin")]
+    [Tooltip("Holds one child per lobby robot, named exactly as in BotSkinLibrary (usually the same object as Visual).")]
+    [SerializeField] Transform robotsParent;
+    [SerializeField] BotSkinLibrary skinLibrary;
 
     [Header("Ready status (on the name tag)")]
     [Tooltip("The icon on the name tag: a tick when this player has voted READY, a spinner while not.")]
@@ -57,6 +64,8 @@ public class LobbySeatPreview : MonoBehaviour
 
     bool shown = true;
     string shownName;
+    int shownLevel = -1;
+    string shownBot, shownSkin;
 
     void Start()
     {
@@ -89,9 +98,49 @@ public class LobbySeatPreview : MonoBehaviour
             shownName = name;
         }
 
+        if (levelLabel != null)
+        {
+            int level = PlayerLobbyProfile.DisplayLevel(occupant != null ? PlayerLobbyProfile.LevelOf(occupant)
+                                                        : seat == LocalSeat() ? PlayerLobbyProfile.LocalLevel
+                                                        : 0);
+            if (level != shownLevel)
+            {
+                levelLabel.text = PlayerLobbyProfile.LevelLabel(level);
+                shownLevel = level;
+            }
+        }
+
         RefreshStatus(occupant);
+        RefreshRobot(occupant);
 
         if (nameTag != null) CameraFacing.FaceUpright(nameTag.transform);
+    }
+
+    // Your seat: your robot from the launch args. A joined player's seat: their synced PlayerLobbyProfile.
+    // A BOT / empty seat keeps the robot as authored. Applied only on change.
+    void RefreshRobot(PlayerMatchState occupant)
+    {
+        if (robotsParent == null || skinLibrary == null) return;
+
+        string bot, skin;
+        bool mine = occupant != null ? occupant == PlayerRoster.Local : seat == LocalSeat();
+        if (mine)
+        {
+            bot = DataTransferHandler.selectedBotName;
+            skin = DataTransferHandler.selectedSkinName;
+        }
+        else if (occupant != null && occupant.TryGetComponent(out PlayerLobbyProfile profile)
+                 && profile.Object != null && profile.Object.IsValid)
+        {
+            bot = profile.BotName.ToString();
+            skin = profile.SkinName.ToString();
+        }
+        else return;
+
+        if (string.IsNullOrEmpty(bot) || (bot == shownBot && skin == shownSkin)) return;
+        shownBot = bot;
+        shownSkin = skin;
+        RobotSwitcher.Show(robotsParent, skinLibrary, bot, skin);
     }
 
     // ─── Who sits here ───────────────────────────────────────────────────

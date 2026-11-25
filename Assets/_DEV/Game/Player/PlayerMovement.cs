@@ -145,18 +145,30 @@ public class PlayerMovement : NetworkBehaviour
                         (Newtonsoft.Json.JsonConvert.SerializeObject(handling));
         driveModel = new VehicleDriveModel(body, driveHandling, probeOffsets, wheelRadius, groundMask);
         driveModel.SurfaceAt = SurfaceAt;
-        visuals = new VehicleVisuals(new VehicleVisuals.Rig
-        {
-            Body = visual,
-            FrontLeft = frontLeftTire,
-            FrontRight = frontRightTire,
-            RearLeft = rearLeftTire,
-            RearRight = rearRightTire,
-            WheelRadius = wheelRadius,
-            MaxTireSteerAngle = maxTireSteerAngle,
-            MaxLeanAngle = maxLeanAngle,
-            LeanSpring = leanSpring,
-        });
+        visuals = new VehicleVisuals(VisualRig());
+    }
+
+    VehicleVisuals.Rig VisualRig() => new VehicleVisuals.Rig
+    {
+        Body = visual,
+        FrontLeft = frontLeftTire,
+        FrontRight = frontRightTire,
+        RearLeft = rearLeftTire,
+        RearRight = rearRightTire,
+        WheelRadius = wheelRadius,
+        MaxTireSteerAngle = maxTireSteerAngle,
+        MaxLeanAngle = maxLeanAngle,
+        LeanSpring = leanSpring,
+    };
+
+    // Lobby robot swap (CarRobotAppearance): animate the active robot's wheels. Cosmetic only.
+    public void SetTireVisuals(Transform frontLeft, Transform frontRight, Transform rearLeft, Transform rearRight)
+    {
+        frontLeftTire = frontLeft;
+        frontRightTire = frontRight;
+        rearLeftTire = rearLeft;
+        rearRightTire = rearRight;
+        if (visuals != null) visuals = new VehicleVisuals(VisualRig());
     }
 
     // Solo pause bookkeeping (host only - the only peer in a solo match).

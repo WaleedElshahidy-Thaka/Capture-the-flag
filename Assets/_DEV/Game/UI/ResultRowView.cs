@@ -10,7 +10,7 @@ public class ResultRowView : MonoBehaviour
     [SerializeField] Image frame;
     [SerializeField, Range(0f, 1f)] float frameAlpha = 0.85f;
     [SerializeField] TMP_Text rankText;
-    [Tooltip("No level system yet - hidden.")]
+    [Tooltip("The player's lobby level ('LV. n'; bots / unknown show LV. 1).")]
     [SerializeField] TMP_Text levelText;
     [SerializeField] TMP_Text nameText;
 
@@ -38,7 +38,7 @@ public class ResultRowView : MonoBehaviour
         }
 
         if (rankText != null) rankText.text = rank.ToString();
-        if (levelText == null) levelText.gameObject.SetActive(false);
+        if (levelText != null) levelText.text = PlayerLobbyProfile.LevelLabel(entry.level);
         if (nameText != null) nameText.text = (entry.name ?? "PLAYER").ToUpperInvariant();
 
         string label = entry.isLocal ? youTag : entry.isBot ? botTag : null;

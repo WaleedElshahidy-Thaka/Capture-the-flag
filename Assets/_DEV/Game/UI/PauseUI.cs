@@ -142,6 +142,7 @@ public class PauseUI : MonoBehaviour
     void ExitToDesktop()
     {
         GameAudioSettings.Save();
+        if (LobbyReturn.TrySwitch()) return;   // launched from the 01Skills lobby: go back to it
 #if UNITY_EDITOR
         UnityEditor.EditorApplication.isPlaying = false;
 #else

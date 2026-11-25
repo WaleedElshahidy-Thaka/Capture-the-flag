@@ -37,7 +37,18 @@ public class CarSkidmarks : MonoBehaviour
     {
         if (movement == null) movement = GetComponent<PlayerMovement>();
         body = GetComponent<Rigidbody>();
+        ResetTracks();
+    }
 
+    // Lobby robot swap (CarRobotAppearance): lay tracks under the active robot's wheels.
+    public void SetWheels(Transform[] newWheels)
+    {
+        wheels = newWheels;
+        ResetTracks();
+    }
+
+    void ResetTracks()
+    {
         int n = wheels != null ? wheels.Length : 0;
         lastSerial = new long[n];
         lastPoint = new Vector3[n];

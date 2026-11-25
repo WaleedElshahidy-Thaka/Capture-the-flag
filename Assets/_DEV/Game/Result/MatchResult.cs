@@ -16,6 +16,7 @@ public class MatchResultEntry
     public int steals;
     public int slams;
     public float distanceMeters;
+    public int level;                // lobby level (PlayerLobbyProfile); 0 = bot / unknown
 }
 
 // Final standings of one match, built from the replicated car state on each peer, so every peer
@@ -70,6 +71,7 @@ public class MatchResult
                 steals = p.Steals,
                 slams = p.Slams,
                 distanceMeters = p.DistanceDriven,
+                level = PlayerLobbyProfile.LevelOf(p),
             });
         }
 

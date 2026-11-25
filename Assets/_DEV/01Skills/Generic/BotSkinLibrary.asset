@@ -1,0 +1,157 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b07541b1a7c04d0e8f3a2c9d15e6a480, type: 3}
+  m_Name: BotSkinLibrary
+  m_EditorClassIdentifier: 
+  bots:
+  - botName: Gravy
+    targetMaterial: {fileID: 2100000, guid: d32784afc68e54a4794835fdee9c93a5, type: 2}
+    skins:
+    - skinName: 2
+      baseMap: {fileID: 2800000, guid: 33d709a2f4c5b0b4b837b6ad6bd3011f, type: 3}
+      normalMap: {fileID: 2800000, guid: 9e62e0fa87efc67419362e8ab624c956, type: 3}
+      metallicMap: {fileID: 2800000, guid: d4a761f59c876e24685801f0fee43397, type: 3}
+    - skinName: 3
+      baseMap: {fileID: 2800000, guid: 24a0e2bae2516e84ead67a1374d0dcbf, type: 3}
+      normalMap: {fileID: 2800000, guid: 1ab266740328f9b4abcbfaac705a4973, type: 3}
+      metallicMap: {fileID: 2800000, guid: c7c98270c70b81045928acd65a846231, type: 3}
+    - skinName: 4
+      baseMap: {fileID: 2800000, guid: d7cbebbdac3436b49b2fa25dabe0a060, type: 3}
+      normalMap: {fileID: 2800000, guid: e201ff78ca18c914da6b533ba1430c1c, type: 3}
+      metallicMap: {fileID: 2800000, guid: 6986cf214d01d0b4a9ab65e205d23d53, type: 3}
+    - skinName: 5
+      baseMap: {fileID: 2800000, guid: 76ec9c4d72c75a14fb6209d65046ae06, type: 3}
+      normalMap: {fileID: 2800000, guid: 0889361e7b7a65143a3f7c3800e3879a, type: 3}
+      metallicMap: {fileID: 2800000, guid: b2e44a7d7294233438f6546c82ab0ba6, type: 3}
+    - skinName: 6
+      baseMap: {fileID: 2800000, guid: 0213005376c8d594280d39c571f9e6b1, type: 3}
+      normalMap: {fileID: 2800000, guid: 2612dbb887fec184da011e561ff6d034, type: 3}
+      metallicMap: {fileID: 2800000, guid: 0ca9ffb1b3fcfde4a9a0da858327cc05, type: 3}
+    - skinName: 1
+      baseMap: {fileID: 2800000, guid: bc9dcfcca353a294cb636495da4f9a72, type: 3}
+      normalMap: {fileID: 2800000, guid: 2b5c549dd3f1e7c44a3bfb6d0ab3c576, type: 3}
+      metallicMap: {fileID: 2800000, guid: 38dc967efa3c992478bf7525aeb41356, type: 3}
+  - botName: RN
+    targetMaterial: {fileID: 2100000, guid: 98d995d65a3e30943855b76820a32570, type: 2}
+    skins:
+    - skinName: 1
+      baseMap: {fileID: 2800000, guid: 9596bf366eefe5d40b2709c9a5a2ea5f, type: 3}
+      normalMap: {fileID: 2800000, guid: 054bb9cfbeac8374da23fce988199027, type: 3}
+      metallicMap: {fileID: 2800000, guid: e58013f3255f7c74891518d7350d4add, type: 3}
+    - skinName: 2
+      baseMap: {fileID: 2800000, guid: 7926b418e40e5b9408ebffc40e6e1e2b, type: 3}
+      normalMap: {fileID: 2800000, guid: 7b32c1021a0fa5247822ad436f6e8dfd, type: 3}
+      metallicMap: {fileID: 2800000, guid: a0ad241f380f39542a579450b8512fc7, type: 3}
+    - skinName: 3
+      baseMap: {fileID: 2800000, guid: d1cac8136396f144caae96d7eb532046, type: 3}
+      normalMap: {fileID: 2800000, guid: b4cda7d9c0640ed44b877d0b4752012d, type: 3}
+      metallicMap: {fileID: 2800000, guid: 9b40343dcdb9c5b4d94dfc855ca79e0d, type: 3}
+    - skinName: 4
+      baseMap: {fileID: 2800000, guid: eb2e95f7a70c6af40b103dd161274af5, type: 3}
+      normalMap: {fileID: 2800000, guid: b4cda7d9c0640ed44b877d0b4752012d, type: 3}
+      metallicMap: {fileID: 2800000, guid: ba18a1a2f0f86fa499472aff263e06e1, type: 3}
+    - skinName: 5
+      baseMap: {fileID: 2800000, guid: fd10f04c14b4ab745b1032c21c682e27, type: 3}
+      normalMap: {fileID: 2800000, guid: b4cda7d9c0640ed44b877d0b4752012d, type: 3}
+      metallicMap: {fileID: 2800000, guid: c22919b5378b3af49b73dcf18d8d6890, type: 3}
+    - skinName: 6
+      baseMap: {fileID: 2800000, guid: 45a8cb5beb04dac4699311ce16f5f2c1, type: 3}
+      normalMap: {fileID: 2800000, guid: b4cda7d9c0640ed44b877d0b4752012d, type: 3}
+      metallicMap: {fileID: 2800000, guid: cad8b6738591bfd4ba0ca337cc87ddf5, type: 3}
+    - skinName: 0
+      baseMap: {fileID: 2800000, guid: dffbeefca9303ed48800c8839ec8f0b6, type: 3}
+      normalMap: {fileID: 2800000, guid: 827da4c3c1ea86247b5552822bc7ebe9, type: 3}
+      metallicMap: {fileID: 2800000, guid: 05a73b1cf6a1d2645b0ca8e206c58ef5, type: 3}
+  - botName: Spark
+    targetMaterial: {fileID: 2100000, guid: b2c5c25eeeeb7974fa22931d1212b474, type: 2}
+    skins:
+    - skinName: 2
+      baseMap: {fileID: 2800000, guid: 424c875f27308624b9a480e21fc40628, type: 3}
+      normalMap: {fileID: 2800000, guid: dd293021b299bcd47aa606d5ce79a7fe, type: 3}
+      metallicMap: {fileID: 2800000, guid: 68cb0967286525241b28f4e70e5715aa, type: 3}
+    - skinName: 3
+      baseMap: {fileID: 2800000, guid: 8bb721043eeb53a448756d99409ec3a7, type: 3}
+      normalMap: {fileID: 2800000, guid: 7a254c4788c0091469df3315acbf3ac5, type: 3}
+      metallicMap: {fileID: 2800000, guid: 90c4e0f86eccbf144abcc262e3c7a3e8, type: 3}
+    - skinName: 4
+      baseMap: {fileID: 2800000, guid: d9a020ca7870295498fb10ca4ef76cde, type: 3}
+      normalMap: {fileID: 2800000, guid: dd293021b299bcd47aa606d5ce79a7fe, type: 3}
+      metallicMap: {fileID: 2800000, guid: dcda7db6f780dce42a01e31449ed0a29, type: 3}
+    - skinName: 5
+      baseMap: {fileID: 2800000, guid: b7e50c19d87847f4f93a25c8bda926ff, type: 3}
+      normalMap: {fileID: 2800000, guid: dd293021b299bcd47aa606d5ce79a7fe, type: 3}
+      metallicMap: {fileID: 2800000, guid: 84dc387d845854746b453cccd8cd3eb0, type: 3}
+    - skinName: 6
+      baseMap: {fileID: 2800000, guid: ec5b2c5de7b191b46a102fbf55b53291, type: 3}
+      normalMap: {fileID: 2800000, guid: dd293021b299bcd47aa606d5ce79a7fe, type: 3}
+      metallicMap: {fileID: 2800000, guid: 8989539b9f4804c409b60fc387747f7a, type: 3}
+    - skinName: 1
+      baseMap: {fileID: 2800000, guid: ff55b201946d9f54eb0d966d5678ce4a, type: 3}
+      normalMap: {fileID: 2800000, guid: dd293021b299bcd47aa606d5ce79a7fe, type: 3}
+      metallicMap: {fileID: 2800000, guid: 1b69c95c2c71d3b438042b4163419618, type: 3}
+  - botName: Core
+    targetMaterial: {fileID: 2100000, guid: 5c00eded63bbcfa42b586be5768a3476, type: 2}
+    skins:
+    - skinName: 2
+      baseMap: {fileID: 2800000, guid: 2eac2dc067844024f978c0cad0dcd345, type: 3}
+      normalMap: {fileID: 2800000, guid: d93baedfeb013ca4ebc38346a11a19e6, type: 3}
+      metallicMap: {fileID: 2800000, guid: 38f435bef6f069148ac8acbb257db3d5, type: 3}
+    - skinName: 3
+      baseMap: {fileID: 2800000, guid: a46773d7d475fe043ac080b1f2720a3b, type: 3}
+      normalMap: {fileID: 2800000, guid: e5907875e2d11df41ad4ab7bef3257cd, type: 3}
+      metallicMap: {fileID: 2800000, guid: f12532beeea867749a77d1ff5f196a32, type: 3}
+    - skinName: 4
+      baseMap: {fileID: 2800000, guid: 343f99269c2b99147a5ab32c7a07752d, type: 3}
+      normalMap: {fileID: 2800000, guid: 3dced29e57084d946b009aba687c693f, type: 3}
+      metallicMap: {fileID: 2800000, guid: f0bd6829b55da11478fb449d669ba93f, type: 3}
+  - botName: Cyclone
+    targetMaterial: {fileID: 2100000, guid: 6e0e5b2878ce3d843b5f737d73571742, type: 2}
+    skins:
+    - skinName: 2
+      baseMap: {fileID: 2800000, guid: 4cea72298f2f776469b3936454cc42f0, type: 3}
+      normalMap: {fileID: 2800000, guid: 551307b783c89ad40a7b811ee76f006a, type: 3}
+      metallicMap: {fileID: 2800000, guid: 95f7d7693c31d9d48ad91ae543ee5367, type: 3}
+    - skinName: 3
+      baseMap: {fileID: 2800000, guid: 47f0f5e882318f04e911d0b9372f15f8, type: 3}
+      normalMap: {fileID: 2800000, guid: 087be72f4e813ce4eaa1c93d533c7d38, type: 3}
+      metallicMap: {fileID: 2800000, guid: c891981821787c94fa7cf3496b876b57, type: 3}
+    - skinName: 4
+      baseMap: {fileID: 2800000, guid: 67c56752f8e28dc4d926d9ead60920a3, type: 3}
+      normalMap: {fileID: 2800000, guid: 7040fa333be4d5348af30688b9f1ee55, type: 3}
+      metallicMap: {fileID: 2800000, guid: 210a39553b958d54183c0928b15fc358, type: 3}
+    - skinName: 5
+      baseMap: {fileID: 2800000, guid: 45f455f59b06d664d9f20bc0771e7ed7, type: 3}
+      normalMap: {fileID: 2800000, guid: 4f0b828f1bbbb444593bc5ae65422031, type: 3}
+      metallicMap: {fileID: 2800000, guid: 83a4b2cebb8d2374a8b1f4a4391f0f08, type: 3}
+    - skinName: 6
+      baseMap: {fileID: 2800000, guid: 5f03ac2740f5f46408b08c28f3ade566, type: 3}
+      normalMap: {fileID: 2800000, guid: bf3b9b0df2a71bd4b80cbfe9983c4ed3, type: 3}
+      metallicMap: {fileID: 2800000, guid: cb3f6ebea32338e42bedda1c55f55445, type: 3}
+  - botName: Bolt
+    targetMaterial: {fileID: 2100000, guid: 6f945a5cc48358d419137d00154cf33b, type: 2}
+    skins:
+    - skinName: 2
+      baseMap: {fileID: 2800000, guid: 38854de871a15d14fb49a2241fa90e7c, type: 3}
+      normalMap: {fileID: 2800000, guid: 582ab40d428ce5f4c9a8881fee483646, type: 3}
+      metallicMap: {fileID: 2800000, guid: e00ffc82c224b4d4ea4c1977078f0206, type: 3}
+    - skinName: 3
+      baseMap: {fileID: 2800000, guid: 954253b0ee10c4d49a22eafd2ffd99c2, type: 3}
+      normalMap: {fileID: 2800000, guid: 72d924e3d65b8e14ea3bb9800298e692, type: 3}
+      metallicMap: {fileID: 2800000, guid: 7f1d2773e8eedb044a8e5941500db031, type: 3}
+    - skinName: 4
+      baseMap: {fileID: 2800000, guid: 7bdc04f82360cb14ca0a88e32721047b, type: 3}
+      normalMap: {fileID: 2800000, guid: f7914b2c242a8d74cb73ccfbaf5bb7ef, type: 3}
+      metallicMap: {fileID: 2800000, guid: 2e10747eb14c1764185682c8975928fb, type: 3}
+    - skinName: 5
+      baseMap: {fileID: 2800000, guid: 34d0dbf4e412021489481390cf4644ec, type: 3}
+      normalMap: {fileID: 2800000, guid: 7c0baebb9ec0544489ee90da374a3622, type: 3}
+      metallicMap: {fileID: 2800000, guid: 28074398608bed64c9ef71e6af0e14b2, type: 3}

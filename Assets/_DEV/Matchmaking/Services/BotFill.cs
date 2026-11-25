@@ -43,6 +43,7 @@ public static class BotFill
                     state.OwnerToken = "";                 // empty = nobody can ever reclaim it
                     state.WasHost = false;
                     state.CanMove = true;                  // released with everyone else
+                    obj.GetComponent<PlayerLobbyProfile>()?.AssignRandomBot(); // lobby robot for the bot
                 });
 
             if (bot == null)
